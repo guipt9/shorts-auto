@@ -29,7 +29,7 @@ import requests
 W, H, FPS = 720, 1280, 25
 OVL_W, OVL_H = 640, 480            # caixa das imagens (centrada)
 OVL_Y = (H - OVL_H) // 2 - 40       # um pouco acima do centro; legendas ficam por baixo
-BORDER = 4
+BORDER = 0                          # sem moldura
 MAX_SHOW = 3.6                      # segundos máximos com uma imagem no ecrã
 TAIL = 0.3                          # cauda curta: facilita o loop
 MAX_BYTES = 4_800_000      # Make (plano grátis) aceita ficheiros até 5 MB
@@ -235,7 +235,7 @@ def fetch_image(term, idx, seen):
 
 
 def image_clip(img, dst, seconds, zoom_in):
-    """Imagem com zoom lento e moldura branca (640x480)."""
+    """Imagem com zoom lento (640x480), sem moldura."""
     frames = max(int(round(seconds * FPS)), 2)
     iw, ih = OVL_W - 2 * BORDER, OVL_H - 2 * BORDER
     z = f"1+0.15*on/{frames}" if zoom_in else f"1.15-0.15*on/{frames}"
@@ -243,9 +243,9 @@ def image_clip(img, dst, seconds, zoom_in):
           f"crop={iw * 2}:{ih * 2},"
           f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
           f"d={frames}:s={iw}x{ih}:fps={FPS},"
-          f"pad={OVL_W}:{OVL_H}:{BORDER}:{BORDER}:color=white,setsar=1,format=yuv420p")
+          "setsar=1,format=yuv420p")
     run(["ffmpeg", "-y", "-loglevel", "error", "-i", img, "-vf", vf, "-frames:v", frames,
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", dst])
+         "-c:v", "libx264", "-preset", "fast", "-crf", "17", "-pix_fmt", "yuv420p", dst])
 
 
 def build_overlays(scenes, offsets, dur):
@@ -282,7 +282,7 @@ def normalize(src, dst, seconds, start=0):
     run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{start:.2f}", "-i", src,
          "-t", f"{seconds:.2f}", "-an",
          "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", dst])
+         "-c:v", "libx264", "-preset", "fast", "-crf", "17", "-pix_fmt", "yuv420p", dst])
 
 
 def fetch_clips(need):
@@ -310,9 +310,9 @@ def encode(clips, overlays, voice, music, sfx, ass, dur, out):
     base = max(int(MAX_BYTES * 8 / 1000 / dur * 0.93 - AUDIO_KBPS), 200)
     fmt = "aformat=sample_rates=44100:channel_layouts=mono"
 
-    for codec in ("libx265", "libx264"):          # HEVC dá melhor imagem aos mesmos MB
-        vkbps = base
-        for _ in range(5):
+    for codec, crf0 in (("libx265", 21), ("libx264", 19)):   # HEVC dá melhor imagem aos mesmos MB
+        vkbps, crf = base, crf0
+        for _ in range(6):
             cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst]
             n, ov_i, mus_i, sfx_i = 1, [], None, []
             for ov in overlays:
@@ -324,9 +324,9 @@ def encode(clips, overlays, voice, music, sfx, ass, dur, out):
             if music:
                 cmd += ["-i", music]
                 mus_i, n = n, n + 1
-            for t, f in sfx:
+            for t, f, vol in sfx:
                 cmd += ["-i", f]
-                sfx_i.append((n, t))
+                sfx_i.append((n, t, vol))
                 n += 1
 
             # vídeo: gameplay em ecrã inteiro + imagens no meio (fade in/out)
@@ -347,8 +347,8 @@ def encode(clips, overlays, voice, music, sfx, ass, dur, out):
                 fc += (f"[{mus_i}:a]{fmt},aloop=loop=-1:size=2147483647,atrim=0:{dur:.2f},"
                        f"volume=0.10,afade=t=out:st={max(dur - 1.5, 0):.2f}:d=1.5[mus];")
                 labels.append("[mus]")
-            for k, (i, t) in enumerate(sfx_i):
-                fc += (f"[{i}:a]{fmt},volume=0.5,adelay={int(t * 1000)},"
+            for k, (i, t, vol) in enumerate(sfx_i):
+                fc += (f"[{i}:a]{fmt},volume={vol},adelay={int(t * 1000)},"
                        f"apad,atrim=0:{dur:.2f}[s{k}];")
                 labels.append(f"[s{k}]")
             if len(labels) > 1:
@@ -361,12 +361,12 @@ def encode(clips, overlays, voice, music, sfx, ass, dur, out):
                 fc += "[voz]anull[a]"
 
             if codec == "libx265":
-                vcodec = ["-c:v", "libx265", "-preset", "medium", "-tag:v", "hvc1",
+                vcodec = ["-c:v", "libx265", "-preset", "slow", "-tag:v", "hvc1",
                           "-x265-params", "log-level=error"]
             else:
                 vcodec = ["-c:v", "libx264", "-preset", "slow"]
             cmd += ["-filter_complex", fc, "-map", "[v]", "-map", "[a]", *vcodec,
-                    "-b:v", f"{vkbps}k", "-maxrate", f"{int(vkbps * 1.15)}k",
+                    "-crf", crf, "-maxrate", f"{vkbps}k",
                     "-bufsize", f"{vkbps * 2}k", "-pix_fmt", "yuv420p", "-r", FPS,
                     "-c:a", "aac", "-b:a", f"{AUDIO_KBPS}k", "-ac", "1", "-ar", "44100",
                     "-movflags", "+faststart", "-t", f"{dur:.2f}", out]
@@ -376,10 +376,10 @@ def encode(clips, overlays, voice, music, sfx, ass, dur, out):
                 print(f"falhou com {codec}; a tentar o seguinte", flush=True)
                 break
             size = os.path.getsize(out)
-            print(f"{codec}: {size / 1e6:.2f} MB a {vkbps} kbps", flush=True)
+            print(f"{codec}: {size / 1e6:.2f} MB (crf {crf}, teto {vkbps} kbps)", flush=True)
             if size <= MAX_BYTES:
                 return size
-            vkbps = int(vkbps * 0.85)
+            vkbps, crf = int(vkbps * 0.9), crf + 2
     raise RuntimeError("Não consegui gerar o vídeo abaixo de 5 MB; encurta o guião.")
 
 
@@ -404,10 +404,17 @@ def main():
     music = random.choice(tracks) if tracks else None
     print("música:", music)
 
-    sfx_files = files_in("sfx", ("wav", "mp3", "ogg", "m4a"))
+    exts = ("wav", "mp3", "ogg", "m4a")
+    intro_files = files_in("sfx/intro", exts)
+    img_files = files_in("sfx/imagem", exts)
+    if not intro_files and not img_files:           # compatibilidade com a pasta antiga
+        img_files = files_in("sfx", exts)
     sfx = []
-    if sfx_files:                                   # um efeito sempre que uma imagem aparece
-        sfx = [(max(ov["start"] - 0.03, 0), random.choice(sfx_files)) for ov in overlays]
+    if intro_files:                                 # efeito de captação no segundo 0
+        sfx.append((0.0, random.choice(intro_files), 0.7))
+    if img_files:                                   # mesmo som em todas as imagens do vídeo
+        chosen = random.choice(img_files)
+        sfx += [(max(ov["start"] - 0.03, 0), chosen, 0.4) for ov in overlays]
     print("efeitos:", len(sfx))
 
     final = OUT / "short.mp4"
