@@ -1,0 +1,57 @@
+name: Render Short
+
+on:
+  repository_dispatch:
+    types: [make_video]          # chamado pelo Make
+  workflow_dispatch:             # teste manual
+    inputs:
+      payload:
+        description: 'JSON com titulo, descricao, tags, cenas (ou guiao), linha'
+        required: true
+
+permissions:
+  contents: write                # criar Releases
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && inputs.payload || toJson(github.event.client_payload) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          pip install -r requirements.txt
+
+      - name: Gerar vídeo
+        run: python make_video.py
+
+      - name: Publicar ficheiro (Release)
+        id: rel
+        run: |
+          TAG="short-${{ github.run_id }}"
+          gh release create "$TAG" out/short.mp4 --title "$TAG" --notes "auto"
+          echo "url=https://github.com/${{ github.repository }}/releases/download/$TAG/short.mp4" >> "$GITHUB_OUTPUT"
+          # manter só as 10 Releases mais recentes
+          gh release list --limit 100 --json tagName -q '.[10:][].tagName' \
+            | xargs -r -n1 gh release delete --cleanup-tag -y
+
+      - name: Avisar o Make
+        env:
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          VIDEO_URL: ${{ steps.rel.outputs.url }}
+        run: |
+          jq --arg url "$VIDEO_URL" '. + {video_url: $url}' out/meta.json \
+            | curl -fsS -X POST "$MAKE_WEBHOOK_URL" -H "Content-Type: application/json" --data @-
