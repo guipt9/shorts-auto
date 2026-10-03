@@ -2,8 +2,9 @@
 """Gera um YouTube Short vertical (720x1280) a partir de cenas.
 
 Pipeline: edge-tts por cena (voz + tempos das palavras) -> legendas ASS ->
-imagens da história (Pixabay, opcional) com zoom lento no topo -> gameplay
-local (pasta fundo/) em baixo -> efeitos sonoros (sfx/) + música (music/) -> ffmpeg.
+gameplay local (pasta fundo/) em ecrã inteiro -> imagens da história (Pixabay,
+opcional) que aparecem no meio do ecrã com zoom lento, desaparecem e voltam
+noutra cena -> efeitos sonoros (sfx/) + música (music/) -> ffmpeg.
 O ficheiro final fica abaixo de 5 MB (limite do plano gratuito do Make).
 
 Entrada: variável de ambiente PAYLOAD (JSON) com:
@@ -26,11 +27,15 @@ import subprocess
 import requests
 
 W, H, FPS = 720, 1280, 25
-TOP_H = H // 2
+OVL_W, OVL_H = 640, 480            # caixa das imagens (centrada)
+OVL_Y = (H - OVL_H) // 2 - 40       # um pouco acima do centro; legendas ficam por baixo
+BORDER = 4
+MAX_SHOW = 3.6                      # segundos máximos com uma imagem no ecrã
+TAIL = 0.3                          # cauda curta: facilita o loop
 MAX_BYTES = 4_800_000      # Make (plano grátis) aceita ficheiros até 5 MB
 AUDIO_KBPS = 56
 DEFAULT_VOICE = "en-US-AndrewNeural"
-DEFAULT_RATE = "+8%"
+DEFAULT_RATE = "+18%"
 OUT, TMP = pathlib.Path("out"), pathlib.Path("tmp")
 
 
@@ -168,7 +173,7 @@ def clean(t):
 
 
 def write_ass(words, path):
-    # Alignment 5 = centro do ecrã (fica na junção imagem/gameplay)
+    # Alignment 2 = em baixo ao centro; MarginV 300 deixa o meio livre para as imagens
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
@@ -177,7 +182,7 @@ WrapStyle: 2
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,48,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,2,5,40,40,0,1
+Style: Default,DejaVu Sans,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,2,2,40,40,300,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -230,43 +235,46 @@ def fetch_image(term, idx, seen):
 
 
 def image_clip(img, dst, seconds, zoom_in):
+    """Imagem com zoom lento e moldura branca (640x480)."""
     frames = max(int(round(seconds * FPS)), 2)
-    z = f"1+0.12*on/{frames}" if zoom_in else f"1.12-0.12*on/{frames}"
-    vf = (f"scale={W * 2}:{TOP_H * 2}:force_original_aspect_ratio=increase,"
-          f"crop={W * 2}:{TOP_H * 2},"
+    iw, ih = OVL_W - 2 * BORDER, OVL_H - 2 * BORDER
+    z = f"1+0.15*on/{frames}" if zoom_in else f"1.15-0.15*on/{frames}"
+    vf = (f"scale={iw * 2}:{ih * 2}:force_original_aspect_ratio=increase,"
+          f"crop={iw * 2}:{ih * 2},"
           f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-          f"d={frames}:s={W}x{TOP_H}:fps={FPS},setsar=1,format=yuv420p")
+          f"d={frames}:s={iw}x{ih}:fps={FPS},"
+          f"pad={OVL_W}:{OVL_H}:{BORDER}:{BORDER}:color=white,setsar=1,format=yuv420p")
     run(["ffmpeg", "-y", "-loglevel", "error", "-i", img, "-vf", vf, "-frames:v", frames,
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", dst])
 
 
-def build_top(scenes, offsets, dur):
-    """Faixa de imagens (720x640) com uma imagem por cena. None se não houver imagens."""
-    seen, imgs = set(), []
+def build_overlays(scenes, offsets, dur):
+    """Escolhe em que cenas aparece imagem (nunca em duas seguidas) e prepara os clips.
+    Devolve [{"start", "end", "path"}]. Lista vazia = só gameplay."""
+    seen, out, prev_shown = set(), [], False
     for i, (_, term) in enumerate(scenes):
-        imgs.append(fetch_image(term, i, seen))
-    if not any(imgs):
-        print("sem imagens: gameplay em ecrã inteiro")
-        return None
-    last = next(x for x in imgs if x)               # cenas sem imagem reutilizam a vizinha
-    for i in range(len(imgs)):
-        if imgs[i]:
-            last = imgs[i]
-        else:
-            imgs[i] = last
-    durs = [d for _, d in offsets]
-    durs[-1] += max(dur - sum(durs), 0)
-    segs = []
-    for i, img in enumerate(imgs):
-        dst = TMP / f"top_{i:02d}.mp4"
-        image_clip(img, dst, durs[i], zoom_in=(i % 2 == 0))
-        segs.append(dst)
-    lst = TMP / "top.txt"
-    lst.write_text("".join(f"file '{s.resolve()}'\n" for s in segs))
-    top = TMP / "top.mp4"
-    run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst,
-         "-c", "copy", top])
-    return top
+        t0, d = offsets[i]
+        if prev_shown or not term:
+            prev_shown = False
+            continue
+        start = t0 + 0.05
+        end = min(t0 + d, start + MAX_SHOW)
+        if i == len(scenes) - 1:
+            end = min(end, dur - 0.05)
+        if end - start < 0.8:                       # cena curta demais para uma imagem
+            prev_shown = False
+            continue
+        img = fetch_image(term, i, seen)
+        if not img:
+            prev_shown = False
+            continue
+        dst = TMP / f"ov_{i:02d}.mp4"
+        image_clip(img, dst, end - start, zoom_in=(len(out) % 2 == 0))
+        out.append({"start": start, "end": end, "path": dst})
+        prev_shown = True
+    if not out:
+        print("sem imagens: só gameplay")
+    return out
 
 
 # --------------------------------------------------------- vídeos de fundo
@@ -296,7 +304,7 @@ def fetch_clips(need):
 
 
 # ------------------------------------------------------------ render final
-def encode(clips, top, voice, music, sfx, ass, dur, out):
+def encode(clips, overlays, voice, music, sfx, ass, dur, out):
     lst = TMP / "clips.txt"
     lst.write_text("".join(f"file '{c.resolve()}'\n" for c in clips))
     base = max(int(MAX_BYTES * 8 / 1000 / dur * 0.93 - AUDIO_KBPS), 200)
@@ -306,10 +314,11 @@ def encode(clips, top, voice, music, sfx, ass, dur, out):
         vkbps = base
         for _ in range(5):
             cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst]
-            n, top_i, mus_i, sfx_i = 1, None, None, []
-            if top:
-                cmd += ["-i", top]
-                top_i, n = n, n + 1
+            n, ov_i, mus_i, sfx_i = 1, [], None, []
+            for ov in overlays:
+                cmd += ["-i", ov["path"]]
+                ov_i.append(n)
+                n += 1
             cmd += ["-i", voice]
             voz_i, n = n, n + 1
             if music:
@@ -320,17 +329,23 @@ def encode(clips, top, voice, music, sfx, ass, dur, out):
                 sfx_i.append((n, t))
                 n += 1
 
-            if top:   # topo = imagens, baixo = faixa central do gameplay
-                fc = (f"[0:v]crop={W}:{TOP_H}:0:{H // 4}[g];"
-                      f"[{top_i}:v][g]vstack=inputs=2[b];[b]ass={ass}[v];")
-            else:
-                fc = f"[0:v]ass={ass}[v];"
+            # vídeo: gameplay em ecrã inteiro + imagens no meio (fade in/out)
+            fc, cur = "", "[0:v]"
+            for k, ov in enumerate(overlays):
+                s_, e_ = ov["start"], ov["end"]
+                fc += (f"[{ov_i[k]}:v]format=yuva420p,setpts=PTS+{s_:.3f}/TB,"
+                       f"fade=t=in:st={s_:.3f}:d=0.2:alpha=1,"
+                       f"fade=t=out:st={e_ - 0.2:.3f}:d=0.2:alpha=1[o{k}];"
+                       f"{cur}[o{k}]overlay=x=(W-w)/2:y={OVL_Y}:"
+                       f"enable='between(t,{s_:.3f},{e_:.3f})':format=auto[b{k}];")
+                cur = f"[b{k}]"
+            fc += f"{cur}format=yuv420p,ass={ass}[v];"
 
             labels = ["[voz]"]
             fc += f"[{voz_i}:a]{fmt},apad,atrim=0:{dur:.2f}[voz];"
             if mus_i is not None:
                 fc += (f"[{mus_i}:a]{fmt},aloop=loop=-1:size=2147483647,atrim=0:{dur:.2f},"
-                       f"volume=0.10,afade=t=out:st={max(dur - 2, 0):.2f}:d=2[mus];")
+                       f"volume=0.10,afade=t=out:st={max(dur - 1.5, 0):.2f}:d=1.5[mus];")
                 labels.append("[mus]")
             for k, (i, t) in enumerate(sfx_i):
                 fc += (f"[{i}:a]{fmt},volume=0.5,adelay={int(t * 1000)},"
@@ -377,12 +392,12 @@ def main():
     TMP.mkdir(exist_ok=True)
 
     voice_file, words, offsets = build_voice(scenes, voice, rate)
-    dur = duration(voice_file) + 0.7
+    dur = duration(voice_file) + TAIL
     print(f"narração: {dur:.1f}s, {len(scenes)} cenas, {len(words)} palavras")
 
     ass = TMP / "subs.ass"
     write_ass(words, ass)
-    top = build_top(scenes, offsets, dur)
+    overlays = build_overlays(scenes, offsets, dur)
     clips = fetch_clips(dur + 1)
 
     tracks = files_in("music", ("mp3", "m4a", "wav", "ogg"))
@@ -391,13 +406,12 @@ def main():
 
     sfx_files = files_in("sfx", ("wav", "mp3", "ogg", "m4a"))
     sfx = []
-    if top and sfx_files:                           # um efeito em cada troca de imagem
-        sfx = [(max(offsets[i][0] - 0.05, 0), random.choice(sfx_files))
-               for i in range(1, len(scenes))]
+    if sfx_files:                                   # um efeito sempre que uma imagem aparece
+        sfx = [(max(ov["start"] - 0.03, 0), random.choice(sfx_files)) for ov in overlays]
     print("efeitos:", len(sfx))
 
     final = OUT / "short.mp4"
-    size = encode(clips, top, voice_file, music, sfx, ass, dur, final)
+    size = encode(clips, overlays, voice_file, music, sfx, ass, dur, final)
 
     tags = as_list(p.get("tags"))
     hashtags = " ".join("#" + re.sub(r"\W+", "", t) for t in tags[:5])
