@@ -1,0 +1,1 @@
+Efeitos so para quando uma IMAGEM aparece (o mesmo som e usado em todas as imagens de um video).
