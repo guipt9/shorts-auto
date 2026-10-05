@@ -2,15 +2,17 @@
 """Gera um YouTube Short vertical (720x1280) a partir de cenas.
 
 Pipeline: edge-tts por cena (voz + tempos das palavras) -> legendas ASS ->
-gameplay local (pasta fundo/) em ecrã inteiro com "punch" de zoom -> imagens da
-história (Pixabay, opcional) que aparecem no meio do ecrã com zoom lento, saem e
-voltam sem parar -> efeitos sonoros (sfx/) + música (music/) -> ffmpeg.
+gameplay local (pasta fundo/) em ecrã inteiro com "punch" de zoom -> poucas imagens
+da história (Pixabay, opcional), que entram quando a palavra-chave é dita ->
+números em destaque no ecrã nas cenas sem imagem -> efeitos sonoros por função
+(sfx/intro, sfx/imagem, sfx/destaque) + música (music/) -> ffmpeg.
 O ficheiro final fica abaixo de 5 MB (limite do plano gratuito do Make).
 
 Entrada: variável de ambiente PAYLOAD (JSON) com:
   titulo, descricao, tags, linha,
-  cenas  -> texto "frase | termo1 ; termo2 // frase | termo // ..."
-            (1 a 3 termos de imagem em inglês por frase; ou lista de {"texto","imagem"}),
+  cenas  -> texto "frase | termo de imagem // frase | // frase | termo // ..."
+            (termo em inglês SÓ nas cenas-chave; deixar vazio nas outras;
+            ou lista de {"texto","imagem"}),
   guiao  -> alternativa antiga (sem imagens; gameplay em ecrã inteiro),
   voz (opcional, por defeito en-US-AndrewNeural), ritmo (opcional, ex. "+8%")
 Saída: out/short.mp4 e out/meta.json
@@ -30,10 +32,11 @@ W, H, FPS = 720, 1280, 25
 OVL_W, OVL_H = 640, 480            # caixa das imagens (centrada)
 OVL_Y = (H - OVL_H) // 2 - 40       # um pouco acima do centro; legendas ficam por baixo
 BORDER = 0                          # sem moldura
-MAX_SHOW = 2.4                      # segundos máximos com uma imagem no ecrã
-MIN_SHOW = 0.7
-GAP = 0.12                          # intervalo entre imagens (sai uma, entra outra)
-FADE = 0.12
+MAX_SHOW = 3.0                      # segundos máximos com uma imagem no ecrã
+MIN_SHOW = 1.0
+MIN_BREAK = 1.2                     # pausa mínima (só gameplay) entre imagens
+FADE = 0.15
+MAX_CALLOUTS = 3                    # números em destaque por vídeo
 TAIL = 0.3                          # cauda curta: facilita o loop
 MAX_BYTES = 4_800_000      # Make (plano grátis) aceita ficheiros até 5 MB
 AUDIO_KBPS = 56
@@ -180,7 +183,7 @@ def clean(t):
     return re.sub(r"[{}\\]", "", t).upper()
 
 
-def write_ass(words, path):
+def write_ass(words, path, callouts=()):
     # Alignment 2 = em baixo ao centro; MarginV 300 deixa o meio livre para as imagens
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -191,6 +194,7 @@ WrapStyle: 2
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,DejaVu Sans,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,2,2,40,40,300,1
+Style: Big,DejaVu Sans,118,&H0000FFFF,&H0000FFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,7,3,5,40,40,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -205,6 +209,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             ("{\\c&H00FFFF&}" + clean(x[2]) + "{\\c&HFFFFFF&}") if x is w else clean(x[2])
             for x in group)
         lines.append(f"Dialogue: 0,{ass_time(w[0])},{ass_time(end)},Default,,0,0,0,,{text}")
+    for c in callouts:                               # número grande com "pop" de entrada
+        txt = c["num"] + (("\\N{\\fs62\\c&HFFFFFF&}" + c["unit"]) if c["unit"] else "")
+        pos = ("{\\an5\\pos(" + str(W // 2) + ",520)\\fad(60,140)\\fscx70\\fscy70"
+               "\\t(0,160,\\fscx100\\fscy100)}")
+        lines.append(f"Dialogue: 1,{ass_time(c['start'])},{ass_time(c['end'])},Big,,0,0,0,,{pos}{txt}")
     pathlib.Path(path).write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -256,32 +265,86 @@ def image_clip(img, dst, seconds, zoom_in):
          "-c:v", "libx264", "-preset", "fast", "-crf", "17", "-pix_fmt", "yuv420p", dst])
 
 
-def build_overlays(scenes, offsets, dur):
-    """Várias imagens por cena (uma por termo; cenas longas ganham 2 fotos do mesmo tema).
-    Cada imagem entra com fade, sai, e a seguinte entra logo a seguir.
-    Devolve [{"start", "end", "path"}]. Lista vazia = só gameplay."""
-    seen, out = set(), []
+def kw_time(scene_words, term):
+    """Instante em que a palavra do termo de imagem é dita (None se não aparecer)."""
+    toks = [re.sub(r"\W", "", x.lower()) for x in term.split()]
+    toks = [x for x in toks if len(x) >= 4]
+    for st, _, w in scene_words:
+        cw = re.sub(r"\W", "", w.lower())
+        if len(cw) >= 4 and any(cw.startswith(t[:5]) or t.startswith(cw[:5]) for t in toks):
+            return st
+    return None
+
+
+def build_overlays(scenes, offsets, words, dur):
+    """Só nas cenas-chave (as que têm termo), uma imagem de cada vez, a entrar quando a
+    palavra-chave é dita. Nunca em cenas seguidas e com pausa mínima entre imagens.
+    Devolve [{"start", "end", "path", "scene"}]. Lista vazia = só gameplay."""
+    seen, out, last_end = set(), [], -9.0
+    max_n = max(2, int(dur // 4.5))                 # no máximo ~1 imagem por 4,5 s
     for i, (_, terms) in enumerate(scenes):
-        if not terms:
+        if not terms or len(out) >= max_n:
             continue
         t0, d = offsets[i]
-        length = min(t0 + d, dur - 0.05) - t0
-        if len(terms) == 1 and length >= 2.8:
-            terms = terms * 2
-        slot = length / len(terms)
-        for k, term in enumerate(terms):
-            start = t0 + k * slot + 0.04
-            end = min(t0 + (k + 1) * slot - GAP, start + MAX_SHOW)
+        scene_end = min(t0 + d, dur - 0.05)
+        sw = [x for x in words if t0 - 0.01 <= x[0] < t0 + d]
+        kt = None if i == 0 else kw_time(sw, terms[0])   # no gancho entra logo
+        start = (kt - 0.12) if kt is not None else t0 + 0.04
+        start = max(start, t0 + 0.04, last_end + MIN_BREAK)
+        end = min(scene_end, start + MAX_SHOW)
+        if end - start < MIN_SHOW:                  # palavra-chave tarde: recua um pouco
+            start = max(end - MIN_SHOW, t0 + 0.04, last_end + MIN_BREAK)
             if end - start < MIN_SHOW:
                 continue
-            img = fetch_image(term, i * 10 + k, seen)
-            if not img:
-                continue
-            dst = TMP / f"ov_{i:02d}_{k}.mp4"
-            image_clip(img, dst, end - start, zoom_in=(len(out) % 2 == 0))
-            out.append({"start": start, "end": end, "path": dst})
+        img = fetch_image(terms[0], i, seen)
+        if not img:
+            continue
+        dst = TMP / f"ov_{i:02d}.mp4"
+        image_clip(img, dst, end - start, zoom_in=(len(out) % 2 == 0))
+        out.append({"start": start, "end": end, "path": dst, "scene": i})
+        last_end = end
+        print(f"imagem cena {i}: {start:.1f}-{end:.1f}s ('{terms[0]}')", flush=True)
     if not out:
         print("sem imagens: só gameplay")
+    return out
+
+
+# ------------------------------------------------- números em destaque
+STOP = {"the", "of", "and", "in", "a", "an", "to", "that", "is", "are", "was", "it", "its",
+        "for", "on", "at", "by", "as", "old", "ago", "or", "but", "so", "we", "they", "than"}
+
+
+def build_callouts(offsets, words, overlays, dur):
+    """Mostra o primeiro número de cada cena SEM imagem em grande no ecrã (máx. 3)."""
+    busy = {ov["scene"] for ov in overlays}
+    out, last_end = [], -9.0
+    for i, (t0, d) in enumerate(offsets):
+        if i in busy or len(out) >= MAX_CALLOUTS:
+            continue
+        sw = [x for x in words if t0 - 0.01 <= x[0] < t0 + d]
+        for k, (st, _, w) in enumerate(sw):
+            num = re.sub(r"[^\d,.%]", "", w).rstrip(".,")
+            if not re.match(r"^\d", num) or num in ("0", "1"):
+                continue
+            unit = []
+            if not re.search(r"[.,!?;:]$", w):
+                for _, _, w2 in sw[k + 1:k + 3]:
+                    cw = re.sub(r"[^\w%]", "", w2.lower())
+                    if not cw or cw in STOP:
+                        break
+                    unit.append(cw.upper())
+                    if re.search(r"[.,!?;:]$", w2):
+                        break
+            while len(" ".join(unit)) > 18:
+                unit.pop()
+            start = max(st - 0.05, last_end + 0.3)
+            end = min(start + 2.0, t0 + d + 0.3, dur - 0.05)
+            if end - start < 1.0:
+                continue
+            out.append({"start": start, "end": end, "num": num, "unit": " ".join(unit)})
+            last_end = end
+            print(f"destaque cena {i}: {start:.1f}-{end:.1f}s ({num} {' '.join(unit)})", flush=True)
+            break
     return out
 
 
@@ -312,8 +375,8 @@ def fetch_clips(need):
 
 
 # ------------------------------------------------------------ render final
-def punch_expr(times, length=0.28, amp=0.05):
-    """Zoom que 'dá um soco' (5%) em cada instante e volta ao normal."""
+def punch_expr(times, length=0.28, amp=0.04):
+    """Zoom que 'dá um soco' (4%) em cada instante e volta ao normal."""
     terms = "+".join(f"gte(it,{t:.3f})*max(0,1-(it-{t:.3f})/{length})" for t in times)
     return f"1+{amp}*({terms})"
 
@@ -412,9 +475,10 @@ def main():
     dur = duration(voice_file) + TAIL
     print(f"narração: {dur:.1f}s, {len(scenes)} cenas, {len(words)} palavras")
 
+    overlays = build_overlays(scenes, offsets, words, dur)
+    callouts = build_callouts(offsets, words, overlays, dur)
     ass = TMP / "subs.ass"
-    write_ass(words, ass)
-    overlays = build_overlays(scenes, offsets, dur)
+    write_ass(words, ass, callouts)
     clips = fetch_clips(dur + 1)
 
     tracks = files_in("music", ("mp3", "m4a", "wav", "ogg"))
@@ -432,10 +496,13 @@ def main():
     if img_files:                                   # mesmo som em todas as imagens do vídeo
         chosen = random.choice(img_files)
         sfx += [(max(ov["start"] - 0.03, 0), chosen, 0.4) for ov in overlays]
+    destaque_files = files_in("sfx/destaque", exts)
+    if destaque_files:                              # som próprio para os números em destaque
+        sfx += [(max(c["start"] - 0.02, 0), random.choice(destaque_files), 0.45) for c in callouts]
     print("efeitos:", len(sfx))
 
     final = OUT / "short.mp4"
-    punches = [0.0] + [ov["start"] for ov in overlays]
+    punches = [0.0] + [ov["start"] for ov in overlays] + [c["start"] for c in callouts]
     size = encode(clips, overlays, punches, voice_file, music, sfx, ass, dur, final)
 
     tags = as_list(p.get("tags"))
