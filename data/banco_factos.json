@@ -1,1 +1,202 @@
-[]
+[
+  {
+    "ideia": "A day on Venus is longer than a year on Venus, meaning it takes longer to rotate once on its axis than to complete an orbit around the Sun.",
+    "categoria": "space",
+    "usada": false
+  },
+  {
+    "ideia": "There is a giant gas cloud in the center of our galaxy that contains enough ethyl alcohol to fill 400 trillion trillion pints of beer.",
+    "categoria": "space",
+    "usada": false
+  },
+  {
+    "ideia": "Neutron stars are so incredibly dense that a single teaspoon of their material would weigh about 6 billion tons on Earth.",
+    "categoria": "space",
+    "usada": false
+  },
+  {
+    "ideia": "Deep in the atmospheres of Neptune and Uranus, the intense pressure is so high that it literally rains diamonds.",
+    "categoria": "space",
+    "usada": false
+  },
+  {
+    "ideia": "According to astronauts, open space smells like a distinct mixture of hot metal, diesel fumes, and seared steak.",
+    "categoria": "space",
+    "usada": false
+  },
+  {
+    "ideia": "Wombats are the only known animals in the world that produce cube-shaped feces, which prevents the droppings from rolling away.",
+    "categoria": "animals",
+    "usada": false
+  },
+  {
+    "ideia": "Flamingos are not born pink; they are actually grey, and their feathers turn pink due to a natural dye in their diet of shrimp and algae.",
+    "categoria": "animals",
+    "usada": false
+  },
+  {
+    "ideia": "A grizzly bear's bite is strong enough to crush a bowling ball, exerting a pressure of over 1,100 pounds per square inch.",
+    "categoria": "animals",
+    "usada": false
+  },
+  {
+    "ideia": "Sea otters hold hands with each other while they sleep so they don't drift apart in the ocean currents.",
+    "categoria": "animals",
+    "usada": false
+  },
+  {
+    "ideia": "Cows have best friends within their herds and become visibly stressed and anxious when they are separated from them.",
+    "categoria": "animals",
+    "usada": false
+  },
+  {
+    "ideia": "Male Gentoo penguins search the entire beach to find the smoothest, most perfect pebble to present as a marriage proposal to their mate.",
+    "categoria": "animals",
+    "usada": false
+  },
+  {
+    "ideia": "Human teeth are the only part of the body that cannot heal or repair themselves because they are not made of living tissue.",
+    "categoria": "the human body",
+    "usada": false
+  },
+  {
+    "ideia": "The human nose can remember and distinguish between more than 50,000 different unique scents.",
+    "categoria": "the human body",
+    "usada": false
+  },
+  {
+    "ideia": "The human body actually glows in the dark, emitting a tiny amount of bioluminescent light that is 1,000 times weaker than our eyes can detect.",
+    "categoria": "the human body",
+    "usada": false
+  },
+  {
+    "ideia": "Signals and information travel along your nerves and throughout your brain at speeds of up to 268 miles per hour.",
+    "categoria": "the human body",
+    "usada": false
+  },
+  {
+    "ideia": "Your brain uses about 20% of your body's total energy and oxygen, despite making up only 2% of your body's total weight.",
+    "categoria": "the human body",
+    "usada": false
+  },
+  {
+    "ideia": "The water pressure at the deepest point of the ocean is equivalent to having an elephant standing directly on your thumb.",
+    "categoria": "the ocean",
+    "usada": false
+  },
+  {
+    "ideia": "There are more historic artifacts and shipwrecks lying at the bottom of the ocean than in all of the world's museums combined.",
+    "categoria": "the ocean",
+    "usada": false
+  },
+  {
+    "ideia": "Jellyfish are made of 95% water and survive perfectly fine without a brain, a heart, bones, or a central nervous system.",
+    "categoria": "the ocean",
+    "usada": false
+  },
+  {
+    "ideia": "The loudest sound ever recorded in the ocean was a mysterious low-frequency noise called 'The Bloop', which was later identified as a massive icequake.",
+    "categoria": "the ocean",
+    "usada": false
+  },
+  {
+    "ideia": "Despite modern technology, more than 80% of the Earth's vast oceans remain completely unexplored, unmapped, and unseen by humans.",
+    "categoria": "the ocean",
+    "usada": false
+  },
+  {
+    "ideia": "The oldest known written customer complaint is a 3,800-year-old clay tablet from ancient Mesopotamia complaining about a delivery of sub-standard copper.",
+    "categoria": "strange history",
+    "usada": false
+  },
+  {
+    "ideia": "In ancient Egypt, Pharaohs would order their servants to be covered in honey to attract pesky flies away from the rulers.",
+    "categoria": "strange history",
+    "usada": false
+  },
+  {
+    "ideia": "In ancient Rome, the sweat of popular gladiators was collected and sold in small vials to wealthy women to use as a facial cosmetic.",
+    "categoria": "strange history",
+    "usada": false
+  },
+  {
+    "ideia": "Before modern alarm clocks existed, people called 'knocker-ups' were paid to shoot dried peas at workers' windows to wake them up for work.",
+    "categoria": "strange history",
+    "usada": false
+  },
+  {
+    "ideia": "In 1325, two rival Italian city-states started a military conflict known as the 'War of the Bucket' after soldiers stole an oak bucket from a well.",
+    "categoria": "strange history",
+    "usada": false
+  },
+  {
+    "ideia": "Under the right conditions of temperature and pressure, water can boil and freeze at the exact same time, a phenomenon known as the 'triple point'.",
+    "categoria": "science",
+    "usada": false
+  },
+  {
+    "ideia": "When cooled to near absolute zero, liquid helium becomes a superfluid, allowing it to flow upward against gravity and climb out of containers.",
+    "categoria": "science",
+    "usada": false
+  },
+  {
+    "ideia": "Bananas contain high levels of potassium-40, which makes them very slightly radioactive, though you'd have to eat millions at once to be harmed.",
+    "categoria": "science",
+    "usada": false
+  },
+  {
+    "ideia": "Lightning strikes the Earth's surface approximately 100 times every single second, releasing immense energy.",
+    "categoria": "science",
+    "usada": false
+  },
+  {
+    "ideia": "Sound waves travel about four times faster through water than they do through the air because water molecules are packed tighter.",
+    "categoria": "science",
+    "usada": false
+  },
+  {
+    "ideia": "The very first computer mouse was invented in 1964 and was constructed almost entirely out of a carved block of wood.",
+    "categoria": "technology",
+    "usada": false
+  },
+  {
+    "ideia": "The QWERTY keyboard layout was intentionally designed to slow down typists so that mechanical arms on early typewriters wouldn't jam.",
+    "categoria": "technology",
+    "usada": false
+  },
+  {
+    "ideia": "The first computer 'bug' was a literal insect—a moth that got stuck inside a Harvard Mark II computer relay in 1947.",
+    "categoria": "technology",
+    "usada": false
+  },
+  {
+    "ideia": "The total weight of all the active man-made satellites orbiting Earth is actually less than the weight of a single modern cruise ship.",
+    "categoria": "technology",
+    "usada": false
+  },
+  {
+    "ideia": "There is a small, cold town in Norway named Hell, and its local river and streets regularly freeze over completely during the winter.",
+    "categoria": "geography",
+    "usada": false
+  },
+  {
+    "ideia": "Canada has more natural lakes than the rest of the world's countries combined, containing about 60% of all the lakes on Earth.",
+    "categoria": "geography",
+    "usada": false
+  },
+  {
+    "ideia": "The Atacama Desert in Chile is the driest place on Earth, with some weather stations there having never recorded a single drop of rain.",
+    "categoria": "geography",
+    "usada": false
+  },
+  {
+    "ideia": "Pure honey never spoils; archaeologists have discovered 3,000-year-old pots of honey in Egyptian tombs that are still perfectly edible.",
+    "categoria": "food",
+    "usada": false
+  },
+  {
+    "ideia": "Cashews grow on the bottom of a strange, yellow-orange fruit called the cashew apple, and their raw outer shells are highly toxic.",
+    "categoria": "food",
+    "usada": false
+  }
+]
