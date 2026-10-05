@@ -1,0 +1,106 @@
+name: Daily Short
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview:
+        description: 'Só gerar o guião (não renderiza nem publica)'
+        type: boolean
+        default: true
+      pilar:
+        description: 'Pilar da história'
+        type: choice
+        options: [auto, factos, historias]
+        default: auto
+      tema:
+        description: 'Tema manual (opcional)'
+        required: false
+        default: ''
+  # schedule:              # ativar na etapa A3
+  #   - cron: '0 16 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-short
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      PREVIEW: ${{ github.event_name == 'workflow_dispatch' && inputs.preview || 'false' }}
+      PILAR: ${{ inputs.pilar || 'auto' }}
+      TEMA: ${{ inputs.tema || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependências Python
+        run: pip install -r requirements.txt
+
+      - name: Escolher e escrever a história
+        id: story
+        run: python pick_story.py
+
+      - name: Instalar ffmpeg e fontes
+        if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+
+      - name: Carregar o payload
+        if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
+        run: |
+          echo "PAYLOAD<<__PAYLOAD_EOF__" >> "$GITHUB_ENV"
+          cat payload.json >> "$GITHUB_ENV"
+          echo >> "$GITHUB_ENV"
+          echo "__PAYLOAD_EOF__" >> "$GITHUB_ENV"
+
+      - name: Gerar vídeo
+        if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
+        run: python make_video.py
+
+      - name: Publicar ficheiro (Release)
+        id: rel
+        if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
+        run: |
+          TAG="short-${{ github.run_id }}"
+          gh release create "$TAG" out/short.mp4 --title "$TAG" --notes "auto"
+          echo "url=https://github.com/${{ github.repository }}/releases/download/$TAG/short.mp4" >> "$GITHUB_OUTPUT"
+          # manter só as 10 Releases mais recentes
+          gh release list --limit 100 --json tagName -q '.[10:][].tagName' \
+            | xargs -r -n1 gh release delete --cleanup-tag -y
+
+      - name: Avisar o Make
+        if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
+        env:
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          VIDEO_URL: ${{ steps.rel.outputs.url }}
+        run: |
+          jq --arg url "$VIDEO_URL" '. + {video_url: $url}' out/meta.json \
+            | curl -fsS -X POST "$MAKE_WEBHOOK_URL" -H "Content-Type: application/json" --data @-
+
+      - name: Guardar o histórico e o banco de ideias
+        if: always() && steps.story.conclusion == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "Sem alterações nos dados."
+          else
+            git commit -m "dados: atualização automática"
+            git pull --rebase
+            git push
+          fi
