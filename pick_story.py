@@ -28,7 +28,9 @@ ROOT = pathlib.Path(__file__).resolve().parent
 DATA = ROOT / "data"
 API = "https://generativelanguage.googleapis.com/v1beta"
 _last_call = 0.0
-_model = None
+_modelos = None      # modelos a tentar, do preferido para o menos preferido
+_idx = 0             # modelo atual (fica "colado" ao que funcionar)
+_chamadas = 0        # pedidos feitos ao Gemini nesta execução
 
 STOP = {"the", "a", "an", "of", "in", "on", "at", "to", "is", "are", "was", "were", "and",
         "or", "that", "it", "its", "for", "by", "as", "with", "from", "than", "this", "has", "have"}
@@ -103,8 +105,8 @@ def _headers():
     return {"x-goog-api-key": os.environ["GEMINI_API_KEY"], "Content-Type": "application/json"}
 
 
-def escolher_modelo(evitar=None):
-    """Procura o modelo Flash estável mais recente disponível na tua chave."""
+def listar_modelos():
+    """(normais, lites): modelos Flash estáveis da tua chave, do mais recente para o mais antigo."""
     r = requests.get(f"{API}/models", params={"pageSize": 200}, headers=_headers(), timeout=60)
     r.raise_for_status()
     nomes = [m["name"].split("/")[-1] for m in r.json().get("models", [])
@@ -118,41 +120,76 @@ def escolher_modelo(evitar=None):
 
     normais = sorted([n for n in ok if "lite" not in n], key=versao, reverse=True)
     lites = sorted([n for n in ok if "lite" in n], key=versao, reverse=True)
-    for n in normais + lites:
-        if n != evitar:
-            return n
-    raise RuntimeError("Não encontrei nenhum modelo Flash disponível na tua chave do Gemini.")
+    return normais, lites
+
+
+def modelos_ordenados(cfg):
+    """Ordem de tentativa: último modelo que funcionou, o da config, depois o resto."""
+    global _modelos
+    if _modelos is None:
+        try:
+            normais, lites = listar_modelos()
+        except Exception as e:
+            log("Não consegui listar os modelos:", e)
+            normais, lites = [cfg.get("modelo") or "gemini-2.5-flash"], []
+        todos = (lites + normais) if cfg.get("preferir_lite") else (normais + lites)
+        if not todos:
+            raise RuntimeError("Não encontrei nenhum modelo Flash disponível na tua chave do Gemini.")
+        ordem = []
+        for m in (load_json(DATA / "modelo.json", {}).get("modelo"), cfg.get("modelo")):
+            if m and m in todos and m not in ordem:
+                ordem.append(m)
+        ordem += [m for m in todos if m not in ordem]
+        _modelos = ordem
+        log("Modelos por ordem de tentativa:", ", ".join(ordem))
+    return _modelos
 
 
 def gemini(prompt, cfg, temperature=0.9):
-    """Chama o Gemini e devolve o JSON da resposta (com pausas e repetições)."""
-    global _last_call, _model
-    _model = _model or cfg.get("modelo") or escolher_modelo()
-    trocou, ultimo = False, None
-    for tentativa in range(5):
+    """Chama o Gemini e devolve o JSON. Se um modelo estiver sobrecarregado (503), sem quota
+    (429) ou inexistente (404), passa ao modelo seguinte e continua daí."""
+    global _last_call, _idx, _chamadas
+    modelos = modelos_ordenados(cfg)
+    falhas, ultimo = 0, None
+
+    def seguinte(motivo):
+        global _idx
+        _idx = (_idx + 1) % len(modelos)
+        log(f"{motivo}; a passar ao modelo {modelos[_idx]}")
+
+    for _ in range(12):
+        modelo = modelos[_idx]
         espera = cfg.get("pausa_entre_chamadas_s", 6) - (time.time() - _last_call)
         if espera > 0:
             time.sleep(espera)
         body = {"contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": temperature,
                                      "responseMimeType": "application/json"}}
-        r = requests.post(f"{API}/models/{_model}:generateContent",
+        r = requests.post(f"{API}/models/{modelo}:generateContent",
                           headers=_headers(), json=body, timeout=180)
         _last_call = time.time()
-        ultimo = r.status_code
-        if r.status_code == 404 and not trocou:
-            log(f"Modelo '{_model}' indisponível; a procurar alternativa...")
-            _model = escolher_modelo(evitar=_model)
-            trocou = True
-            log("A usar o modelo", _model)
+        _chamadas += 1
+        ultimo = f"{r.status_code} ({modelo})"
+        if r.status_code == 404:
+            seguinte(f"Modelo {modelo} indisponível")
+            falhas = 0
+            continue
+        if r.status_code == 429 and re.search(r"PerDay|per day|daily", r.text, re.I):
+            seguinte(f"Quota diária de {modelo} esgotada")
+            falhas = 0
             continue
         if r.status_code in (429, 500, 502, 503, 504):
-            w = 15 * (tentativa + 1)
-            log(f"Gemini devolveu {r.status_code}; nova tentativa em {w}s")
-            time.sleep(w)
+            falhas += 1
+            if falhas >= 2 and len(modelos) > 1:
+                seguinte(f"{modelo} devolveu {r.status_code} duas vezes")
+                falhas = 0
+            else:
+                log(f"{modelo} devolveu {r.status_code}; nova tentativa em 15s")
+                time.sleep(15)
             continue
         if r.status_code >= 400:
-            raise RuntimeError(f"Gemini {r.status_code}: {r.text[:300]}")
+            raise RuntimeError(f"Gemini {r.status_code} ({modelo}): {r.text[:300]}")
+        falhas = 0
         data = r.json()
         try:
             partes = data["candidates"][0]["content"]["parts"]
@@ -165,8 +202,20 @@ def gemini(prompt, cfg, temperature=0.9):
         except Exception:
             log("JSON inválido; a repetir...")
             prompt += "\n\nReturn ONLY valid JSON, nothing else."
-    raise RuntimeError(f"O Gemini não devolveu uma resposta utilizável (último estado: {ultimo}). "
-                       "Se for 429, a quota gratuita de hoje pode ter acabado.")
+    raise RuntimeError(f"O Gemini não devolveu uma resposta utilizável (último estado: {ultimo}; "
+                       f"modelos tentados: {', '.join(modelos)}). Se forem 503, é falta de capacidade "
+                       "do lado da Google (tenta mais tarde); se forem 429, a quota gratuita acabou.")
+
+
+def guardar_modelo():
+    """Guarda o modelo que funcionou, para a próxima execução começar por ele."""
+    if _modelos:
+        save_json(DATA / "modelo.json", {"modelo": _modelos[_idx],
+                                         "data": datetime.date.today().isoformat()})
+
+
+def info_gemini():
+    return f"Gemini: {_chamadas} pedidos nesta execução · modelo {(_modelos or ['?'])[_idx]}"
 
 
 # ------------------------------------------------------------ ideias/banco
@@ -525,12 +574,14 @@ def main():
         f = os.environ.get("GITHUB_STEP_SUMMARY")
         if f:
             with open(f, "a", encoding="utf-8") as fh:
-                fh.write(f"## Dia saltado\n\nTema: {ideia}\n\nÚltimos problemas: {feedback}\n")
+                fh.write(f"## Dia saltado\n\nTema: {ideia}\n\nÚltimos problemas: {feedback}\n\n{info_gemini()}\n")
+        guardar_modelo()
         return 0
 
     payload = montar_payload(final, pilar, cfg, ideia, gancho)
     (ROOT / "payload.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
-    resumo(payload, pilar, origem, preview)
+    resumo(payload, pilar, origem, preview, extra=info_gemini())
+    guardar_modelo()
     set_output("skip", "false")
     set_output("pilar", pilar)
     set_output("titulo", payload["titulo"])
