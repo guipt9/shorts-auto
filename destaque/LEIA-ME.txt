@@ -1,0 +1,1 @@
+Efeitos so para quando aparece um NUMERO/DADO em destaque no ecra (um e escolhido ao acaso).
