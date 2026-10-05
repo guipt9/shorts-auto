@@ -2,15 +2,15 @@
 """Gera um YouTube Short vertical (720x1280) a partir de cenas.
 
 Pipeline: edge-tts por cena (voz + tempos das palavras) -> legendas ASS ->
-gameplay local (pasta fundo/) em ecrã inteiro -> imagens da história (Pixabay,
-opcional) que aparecem no meio do ecrã com zoom lento, desaparecem e voltam
-noutra cena -> efeitos sonoros (sfx/) + música (music/) -> ffmpeg.
+gameplay local (pasta fundo/) em ecrã inteiro com "punch" de zoom -> imagens da
+história (Pixabay, opcional) que aparecem no meio do ecrã com zoom lento, saem e
+voltam sem parar -> efeitos sonoros (sfx/) + música (music/) -> ffmpeg.
 O ficheiro final fica abaixo de 5 MB (limite do plano gratuito do Make).
 
 Entrada: variável de ambiente PAYLOAD (JSON) com:
   titulo, descricao, tags, linha,
-  cenas  -> texto "frase | termo de imagem em inglês // frase | termo // ..."
-            (ou lista de {"texto":..., "imagem":...}),
+  cenas  -> texto "frase | termo1 ; termo2 // frase | termo // ..."
+            (1 a 3 termos de imagem em inglês por frase; ou lista de {"texto","imagem"}),
   guiao  -> alternativa antiga (sem imagens; gameplay em ecrã inteiro),
   voz (opcional, por defeito en-US-AndrewNeural), ritmo (opcional, ex. "+8%")
 Saída: out/short.mp4 e out/meta.json
@@ -30,7 +30,10 @@ W, H, FPS = 720, 1280, 25
 OVL_W, OVL_H = 640, 480            # caixa das imagens (centrada)
 OVL_Y = (H - OVL_H) // 2 - 40       # um pouco acima do centro; legendas ficam por baixo
 BORDER = 0                          # sem moldura
-MAX_SHOW = 3.6                      # segundos máximos com uma imagem no ecrã
+MAX_SHOW = 2.4                      # segundos máximos com uma imagem no ecrã
+MIN_SHOW = 0.7
+GAP = 0.12                          # intervalo entre imagens (sai uma, entra outra)
+FADE = 0.12
 TAIL = 0.3                          # cauda curta: facilita o loop
 MAX_BYTES = 4_800_000      # Make (plano grátis) aceita ficheiros até 5 MB
 AUDIO_KBPS = 56
@@ -64,27 +67,32 @@ def files_in(folder, exts):
 
 
 # ----------------------------------------------------------------- cenas
+def split_terms(v):
+    items = v if isinstance(v, list) else re.split(r"[;,]", str(v or ""))
+    return [str(x).strip() for x in items if str(x).strip()][:3]
+
+
 def parse_scenes(p):
-    """Devolve [(texto, termo_de_imagem)]."""
+    """Devolve [(texto, [termos de imagem])]."""
     cenas, scenes = p.get("cenas"), []
     if isinstance(cenas, list):
         for c in cenas:
             if isinstance(c, dict):
                 t = str(c.get("texto") or c.get("text") or "").strip()
-                img = str(c.get("imagem") or c.get("image") or "").strip()
+                img = c.get("imagem") or c.get("image") or ""
             else:
                 t, img = str(c).strip(), ""
             if t:
-                scenes.append((t, img))
+                scenes.append((t, split_terms(img)))
     elif isinstance(cenas, str) and cenas.strip():
         for part in cenas.split("//"):
             t, _, img = part.partition("|")
-            t, img = t.strip(), img.strip()
+            t = t.strip()
             if t:
-                scenes.append((t, img))
+                scenes.append((t, split_terms(img)))
     if not scenes:
         script = re.sub(r"\s+", " ", str(p.get("guiao", ""))).strip()
-        scenes = [(s.strip(), "") for s in re.split(r"(?<=[.!?])\s+", script) if s.strip()]
+        scenes = [(x.strip(), []) for x in re.split(r"(?<=[.!?])\s+", script) if x.strip()]
     if not scenes:
         raise RuntimeError("O payload não tem 'cenas' nem 'guiao'.")
     return scenes
@@ -249,29 +257,29 @@ def image_clip(img, dst, seconds, zoom_in):
 
 
 def build_overlays(scenes, offsets, dur):
-    """Escolhe em que cenas aparece imagem (nunca em duas seguidas) e prepara os clips.
+    """Várias imagens por cena (uma por termo; cenas longas ganham 2 fotos do mesmo tema).
+    Cada imagem entra com fade, sai, e a seguinte entra logo a seguir.
     Devolve [{"start", "end", "path"}]. Lista vazia = só gameplay."""
-    seen, out, prev_shown = set(), [], False
-    for i, (_, term) in enumerate(scenes):
+    seen, out = set(), []
+    for i, (_, terms) in enumerate(scenes):
+        if not terms:
+            continue
         t0, d = offsets[i]
-        if prev_shown or not term:
-            prev_shown = False
-            continue
-        start = t0 + 0.05
-        end = min(t0 + d, start + MAX_SHOW)
-        if i == len(scenes) - 1:
-            end = min(end, dur - 0.05)
-        if end - start < 0.8:                       # cena curta demais para uma imagem
-            prev_shown = False
-            continue
-        img = fetch_image(term, i, seen)
-        if not img:
-            prev_shown = False
-            continue
-        dst = TMP / f"ov_{i:02d}.mp4"
-        image_clip(img, dst, end - start, zoom_in=(len(out) % 2 == 0))
-        out.append({"start": start, "end": end, "path": dst})
-        prev_shown = True
+        length = min(t0 + d, dur - 0.05) - t0
+        if len(terms) == 1 and length >= 2.8:
+            terms = terms * 2
+        slot = length / len(terms)
+        for k, term in enumerate(terms):
+            start = t0 + k * slot + 0.04
+            end = min(t0 + (k + 1) * slot - GAP, start + MAX_SHOW)
+            if end - start < MIN_SHOW:
+                continue
+            img = fetch_image(term, i * 10 + k, seen)
+            if not img:
+                continue
+            dst = TMP / f"ov_{i:02d}_{k}.mp4"
+            image_clip(img, dst, end - start, zoom_in=(len(out) % 2 == 0))
+            out.append({"start": start, "end": end, "path": dst})
     if not out:
         print("sem imagens: só gameplay")
     return out
@@ -294,7 +302,7 @@ def fetch_clips(need):
     while got < need:
         src = random.choice(files)
         d = duration(src)
-        seg = min(need - got, d, random.uniform(10, 20))
+        seg = min(need - got, d, random.uniform(7, 12))
         start = random.uniform(0, max(d - seg, 0))
         dst = TMP / f"clip_{len(clips):02d}.mp4"
         normalize(src, dst, seg, start)
@@ -304,7 +312,13 @@ def fetch_clips(need):
 
 
 # ------------------------------------------------------------ render final
-def encode(clips, overlays, voice, music, sfx, ass, dur, out):
+def punch_expr(times, length=0.28, amp=0.05):
+    """Zoom que 'dá um soco' (5%) em cada instante e volta ao normal."""
+    terms = "+".join(f"gte(it,{t:.3f})*max(0,1-(it-{t:.3f})/{length})" for t in times)
+    return f"1+{amp}*({terms})"
+
+
+def encode(clips, overlays, punches, voice, music, sfx, ass, dur, out):
     lst = TMP / "clips.txt"
     lst.write_text("".join(f"file '{c.resolve()}'\n" for c in clips))
     base = max(int(MAX_BYTES * 8 / 1000 / dur * 0.93 - AUDIO_KBPS), 200)
@@ -330,12 +344,15 @@ def encode(clips, overlays, voice, music, sfx, ass, dur, out):
                 n += 1
 
             # vídeo: gameplay em ecrã inteiro + imagens no meio (fade in/out)
-            fc, cur = "", "[0:v]"
+            fc = (f"[0:v]hqdn3d=2.5:1.5:4:3,"
+                  f"zoompan=z='{punch_expr(punches)}':d=1:x='iw/2-(iw/zoom/2)':"
+                  f"y='ih/2-(ih/zoom/2)':s={W}x{H}:fps={FPS}[g0];")
+            cur = "[g0]"
             for k, ov in enumerate(overlays):
                 s_, e_ = ov["start"], ov["end"]
                 fc += (f"[{ov_i[k]}:v]format=yuva420p,setpts=PTS+{s_:.3f}/TB,"
-                       f"fade=t=in:st={s_:.3f}:d=0.2:alpha=1,"
-                       f"fade=t=out:st={e_ - 0.2:.3f}:d=0.2:alpha=1[o{k}];"
+                       f"fade=t=in:st={s_:.3f}:d={FADE}:alpha=1,"
+                       f"fade=t=out:st={e_ - FADE:.3f}:d={FADE}:alpha=1[o{k}];"
                        f"{cur}[o{k}]overlay=x=(W-w)/2:y={OVL_Y}:"
                        f"enable='between(t,{s_:.3f},{e_:.3f})':format=auto[b{k}];")
                 cur = f"[b{k}]"
@@ -418,7 +435,8 @@ def main():
     print("efeitos:", len(sfx))
 
     final = OUT / "short.mp4"
-    size = encode(clips, overlays, voice_file, music, sfx, ass, dur, final)
+    punches = [0.0] + [ov["start"] for ov in overlays]
+    size = encode(clips, overlays, punches, voice_file, music, sfx, ass, dur, final)
 
     tags = as_list(p.get("tags"))
     hashtags = " ".join("#" + re.sub(r"\W+", "", t) for t in tags[:5])
