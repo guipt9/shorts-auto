@@ -1,0 +1,19 @@
+{
+  "modelo": "gemini-2.5-flash",
+  "pausa_entre_chamadas_s": 6,
+  "voz": "en-US-AndrewNeural",
+  "ritmo": "+18%",
+  "pilares": {
+    "factos":    {"ativo": true,  "peso": 40},
+    "noticias":  {"ativo": false, "peso": 30},
+    "historias": {"ativo": true,  "peso": 30}
+  },
+  "categorias_factos": ["space", "animals", "the human body", "the ocean", "strange history", "science", "technology", "geography", "food"],
+  "palavras_proibidas": ["suicide", "murder", "rape", "terror", "nazi", "genocide", "porn", "sex", "covid", "vaccine", "election", "trump", "biden", "putin", "gore"],
+  "limites": {
+    "cenas_min": 7, "cenas_max": 10,
+    "palavras_min": 55, "palavras_max": 78,
+    "imagens_min": 2, "imagens_max": 5,
+    "titulo_max": 70
+  }
+}

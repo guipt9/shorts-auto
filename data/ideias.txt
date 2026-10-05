@@ -1,0 +1,4 @@
+# As tuas ideias manuais (uma por linha). Sao usadas ANTES das ideias geradas pela IA.
+# Podes indicar o pilar com um prefixo:   factos: Honey never spoils
+#                                         historias: A lighthouse keeper who never sees the sea
+# Sem prefixo, a ideia serve para qualquer pilar. Linhas que comecam por # sao ignoradas.
