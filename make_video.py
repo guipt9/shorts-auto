@@ -281,7 +281,7 @@ def build_overlays(scenes, offsets, words, dur):
     palavra-chave é dita. Nunca em cenas seguidas e com pausa mínima entre imagens.
     Devolve [{"start", "end", "path", "scene"}]. Lista vazia = só gameplay."""
     seen, out, last_end = set(), [], -9.0
-    max_n = max(2, int(dur // 4.5))                 # no máximo ~1 imagem por 4,5 s
+    max_n = max(2, int(dur // 3.5))                 # no máximo ~1 imagem por 4,5 s
     for i, (_, terms) in enumerate(scenes):
         if not terms or len(out) >= max_n:
             continue
