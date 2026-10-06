@@ -31,6 +31,14 @@
       "gancho": "e_se",
       "titulo": "The Upside Down Locked Room Mystery",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-06",
+      "pilar": "factos",
+      "tema": "Human teeth are the only part of the body that cannot heal or repair themselves because they are not made of living tissue.",
+      "gancho": "numero",
+      "titulo": "The Only Body Part That Never Heals",
+      "estado": "pendente"
     }
   ]
 }
