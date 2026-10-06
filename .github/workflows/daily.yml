@@ -10,7 +10,7 @@ on:
       pilar:
         description: 'Pilar da história'
         type: choice
-        options: [auto, factos, historias]
+        options: [auto, factos, historias, noticias]
         default: auto
       tema:
         description: 'Tema manual (opcional)'
