@@ -23,6 +23,14 @@
       "gancho": "segredo",
       "titulo": "Cows Have Best Friends And Get Sad Without Them",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-06",
+      "pilar": "historias",
+      "tema": "A detective finds a footprint on the ceiling of a locked room, only to realize the gravity inside the building is upside down.",
+      "gancho": "e_se",
+      "titulo": "The Upside Down Locked Room Mystery",
+      "estado": "pendente"
     }
   ]
 }

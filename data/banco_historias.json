@@ -1,1 +1,202 @@
-[]
+[
+  {
+    "ideia": "A man buys a vintage mirror that reflects yesterday instead of today, until he sees himself waving back from behind the glass.",
+    "categoria": "mystery",
+    "usada": false
+  },
+  {
+    "ideia": "Every time a woman drinks coffee, her smartphone battery percentage drops by the exact same amount.",
+    "categoria": "sci-fi",
+    "usada": false
+  },
+  {
+    "ideia": "What if gravity reversed for exactly three seconds every Tuesday afternoon, but only inside grocery store freezer aisles?",
+    "categoria": "what-if",
+    "usada": false
+  },
+  {
+    "ideia": "An old clockmaker creates a grandfather clock that makes time run backward, only to realize it cannot be stopped once wound.",
+    "categoria": "legend",
+    "usada": false
+  },
+  {
+    "ideia": "A houseplant refuses to grow unless its owner whispers daily compliments to it in a language nobody speaks.",
+    "categoria": "light horror",
+    "usada": false
+  },
+  {
+    "ideia": "A barista discovers that the foam art in her lattes predicts the trivial inconveniences her customers will face that day.",
+    "categoria": "mild comedy",
+    "usada": false
+  },
+  {
+    "ideia": "A detective finds a footprint on the ceiling of a locked room, only to realize the gravity inside the building is upside down.",
+    "categoria": "mystery",
+    "usada": true
+  },
+  {
+    "ideia": "What if shadows started lagging two seconds behind their people, mimicking actions before they actually happen?",
+    "categoria": "sci-fi",
+    "usada": false
+  },
+  {
+    "ideia": "A town librarian finds a book with no title that writes out every local resident's thoughts five minutes before they think them.",
+    "categoria": "what-if",
+    "usada": false
+  },
+  {
+    "ideia": "An ancient legend speaks of a mountain peak where echoes answer back with words nobody has spoken yet.",
+    "categoria": "legend",
+    "usada": false
+  },
+  {
+    "ideia": "A late-night security guard notices the mannequins in a clothing store switch positions every time he blinks.",
+    "categoria": "light horror",
+    "usada": false
+  },
+  {
+    "ideia": "A man builds a robot to organize his sock drawer, but the machine unionizes with the laundry basket.",
+    "categoria": "mild comedy",
+    "usada": false
+  },
+  {
+    "ideia": "An amateur astronomer captures a star blinking in Morse code, spelling out his own childhood home address.",
+    "categoria": "mystery",
+    "usada": false
+  },
+  {
+    "ideia": "What if you could pay for items in a vending machine using your unused memories instead of cash?",
+    "categoria": "sci-fi",
+    "usada": false
+  },
+  {
+    "ideia": "A bakery uses flour from a mysterious mill where the bread baked reveals secret messages when sliced.",
+    "categoria": "mystery",
+    "usada": false
+  },
+  {
+    "ideia": "What if the moon was actually a giant lens focusing a stranger's flashlight onto our planet every night?",
+    "categoria": "what-if",
+    "usada": false
+  },
+  {
+    "ideia": "According to local legend, the town bell tolls thirteen times only when someone forgets their own name.",
+    "categoria": "legend",
+    "usada": false
+  },
+  {
+    "ideia": "A smart refrigerator begins leaving passive-aggressive post-it notes on its own digital screen about the midnight snacking habits.",
+    "categoria": "light horror",
+    "usada": false
+  },
+  {
+    "ideia": "A tourist tries to use a universal translator app on a stray cat, only to receive stock market tips.",
+    "categoria": "mild comedy",
+    "usada": false
+  },
+  {
+    "ideia": "A woman receives daily letters from a secret admirer dated forty years in the future.",
+    "categoria": "sci-fi",
+    "usada": false
+  },
+  {
+    "ideia": "What if the color blue tasted like peppermint to everyone except left-handed people?",
+    "categoria": "what-if",
+    "usada": false
+  },
+  {
+    "ideia": "An antique compass points persistently toward the user's pocket instead of magnetic north.",
+    "categoria": "mystery",
+    "usada": false
+  },
+  {
+    "ideia": "The legend of the Whispering Woods says that if you lose an umbrella there, it returns as a tree branch.",
+    "categoria": "legend",
+    "usada": false
+  },
+  {
+    "ideia": "A student wearing noise-canceling headphones realizes the silence in the room is getting louder.",
+    "categoria": "light horror",
+    "usada": false
+  },
+  {
+    "ideia": "A dog learns how to operate the television remote and refuses to watch anything except cooking shows.",
+    "categoria": "mild comedy",
+    "usada": false
+  },
+  {
+    "ideia": "A man finds a key in his pocket that unlocks doors he has not walked through yet.",
+    "categoria": "sci-fi",
+    "usada": false
+  },
+  {
+    "ideia": "What if every mirror on Earth was actually a window into a parallel universe where nobody has mirrors?",
+    "categoria": "what-if",
+    "usada": false
+  },
+  {
+    "ideia": "An art critic realizes a famous painting changes its background scenery whenever the gallery lights are turned off.",
+    "categoria": "mystery",
+    "usada": false
+  },
+  {
+    "ideia": "An old lighthouse keeps its light on even during sunny days to guide invisible ships away from the cliffs.",
+    "categoria": "legend",
+    "usada": false
+  },
+  {
+    "ideia": "A person sets their alarm clock for tomorrow morning, but it starts ringing immediately from next week.",
+    "categoria": "sci-fi",
+    "usada": false
+  },
+  {
+    "ideia": "A smart home assistant starts locking the front door from the inside because it claims the porch is too loud.",
+    "categoria": "light horror",
+    "usada": false
+  },
+  {
+    "ideia": "A commuter accidentally boards a train that travels exclusively through yesterday's rush hour.",
+    "categoria": "sci-fi",
+    "usada": false
+  },
+  {
+    "ideia": "What if clouds were made of cotton candy, but only during thunderstorms?",
+    "categoria": "what-if",
+    "usada": false
+  },
+  {
+    "ideia": "A gardener finds a seed that sprouts flowers that glow in the dark and whisper secrets about the weather.",
+    "categoria": "mystery",
+    "usada": false
+  },
+  {
+    "ideia": "Legend has it that a forgotten fountain in the city park grants wishes, but only for parking spaces.",
+    "categoria": "legend",
+    "usada": false
+  },
+  {
+    "ideia": "A phone charging cable refuses to work unless it is plugged in while facing away from the wall outlet.",
+    "categoria": "mild comedy",
+    "usada": false
+  },
+  {
+    "ideia": "An office worker discovers that his computer keyboard is typing out his inner thoughts instead of his emails.",
+    "categoria": "mystery",
+    "usada": false
+  },
+  {
+    "ideia": "What if elevators could move sideways through buildings if you pressed all the buttons in alphabetical order?",
+    "categoria": "what-if",
+    "usada": false
+  },
+  {
+    "ideia": "A painter realizes every portrait he paints ages instead of him, until the canvas starts smiling back independently.",
+    "categoria": "light horror",
+    "usada": false
+  },
+  {
+    "ideia": "A pigeon stands on a park bench and glares at a businessman because it believes the man owes it bread crumbs from last Tuesday.",
+    "categoria": "mild comedy",
+    "usada": false
+  }
+]
