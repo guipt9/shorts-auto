@@ -33,8 +33,8 @@ OVL_W, OVL_H = 640, 480            # caixa das imagens (centrada)
 OVL_Y = (H - OVL_H) // 2 - 40       # um pouco acima do centro; legendas ficam por baixo
 BORDER = 0                          # sem moldura
 MAX_SHOW = 3.0                      # segundos máximos com uma imagem no ecrã
-MIN_SHOW = 1.0
-MIN_BREAK = 0.8                     # pausa mínima (só gameplay) entre imagens
+MIN_SHOW = 0.7
+MIN_BREAK = 0.35                    # pausa mínima (só gameplay) entre imagens
 FADE = 0.15
 MAX_CALLOUTS = 3                    # números em destaque por vídeo
 TAIL = 0.3                          # cauda curta: facilita o loop
@@ -193,8 +193,8 @@ WrapStyle: 2
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,2,2,40,40,300,1
-Style: Big,DejaVu Sans,118,&H0000FFFF,&H0000FFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,7,3,5,40,40,0,1
+Style: Default,DejaVu Sans,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,6,3,3,2,40,40,260,1
+Style: Big,DejaVu Sans,124,&H0000FFFF,&H0000FFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,8,4,4,2,40,40,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -262,7 +262,7 @@ def image_clip(img, dst, seconds, zoom_in):
           f"d={frames}:s={iw}x{ih}:fps={FPS},"
           "setsar=1,format=yuv420p")
     run(["ffmpeg", "-y", "-loglevel", "error", "-i", img, "-vf", vf, "-frames:v", frames,
-         "-c:v", "libx264", "-preset", "fast", "-crf", "17", "-pix_fmt", "yuv420p", dst])
+         "-c:v", "libx264", "-preset", "fast", "-crf", "15", "-pix_fmt", "yuv420p", dst])
 
 
 def kw_time(scene_words, term):
@@ -281,7 +281,7 @@ def build_overlays(scenes, offsets, words, dur):
     palavra-chave é dita. Nunca em cenas seguidas e com pausa mínima entre imagens.
     Devolve [{"start", "end", "path", "scene"}]. Lista vazia = só gameplay."""
     seen, out, last_end = set(), [], -9.0
-    max_n = max(2, int(dur // 3.5))                 # no máximo ~1 imagem por 4,5 s
+    max_n = max(3, int(dur // 2.5))                 # no máximo ~1 imagem por 4,5 s
     for i, (_, terms) in enumerate(scenes):
         if not terms or len(out) >= max_n:
             continue
@@ -290,7 +290,7 @@ def build_overlays(scenes, offsets, words, dur):
         sw = [x for x in words if t0 - 0.01 <= x[0] < t0 + d]
         kt = None if i == 0 else kw_time(sw, terms[0])   # no gancho entra logo
         start = (kt - 0.12) if kt is not None else t0 + 0.04
-        start = max(start, t0 + 0.04, last_end + MIN_BREAK)
+        start = max(start, t0 + 0.02, last_end + MIN_BREAK)
         end = min(scene_end, start + MAX_SHOW)
         if end - start < MIN_SHOW:                  # palavra-chave tarde: recua um pouco
             start = max(end - MIN_SHOW, t0 + 0.04, last_end + MIN_BREAK)
@@ -375,7 +375,7 @@ def fetch_clips(need):
 
 
 # ------------------------------------------------------------ render final
-def punch_expr(times, length=0.28, amp=0.04):
+def punch_expr(times, length=0.25, amp=0.10):
     """Zoom que 'dá um soco' (4%) em cada instante e volta ao normal."""
     terms = "+".join(f"gte(it,{t:.3f})*max(0,1-(it-{t:.3f})/{length})" for t in times)
     return f"1+{amp}*({terms})"
@@ -384,7 +384,7 @@ def punch_expr(times, length=0.28, amp=0.04):
 def encode(clips, overlays, punches, voice, music, sfx, ass, dur, out):
     lst = TMP / "clips.txt"
     lst.write_text("".join(f"file '{c.resolve()}'\n" for c in clips))
-    base = max(int(MAX_BYTES * 8 / 1000 / dur * 0.93 - AUDIO_KBPS), 200)
+    base = max(int(MAX_BYTES * 8 / 1000 / dur * 1.02 - AUDIO_KBPS), 220)
     fmt = "aformat=sample_rates=44100:channel_layouts=mono"
 
     for codec, crf0 in (("libx265", 21), ("libx264", 19)):   # HEVC dá melhor imagem aos mesmos MB
@@ -425,7 +425,7 @@ def encode(clips, overlays, punches, voice, music, sfx, ass, dur, out):
             fc += f"[{voz_i}:a]{fmt},apad,atrim=0:{dur:.2f}[voz];"
             if mus_i is not None:
                 fc += (f"[{mus_i}:a]{fmt},aloop=loop=-1:size=2147483647,atrim=0:{dur:.2f},"
-                       f"volume=0.10,afade=t=out:st={max(dur - 1.5, 0):.2f}:d=1.5[mus];")
+                       f"volume=0.15,afade=t=out:st={max(dur - 1.5, 0):.2f}:d=1.5[mus];")
                 labels.append("[mus]")
             for k, (i, t, vol) in enumerate(sfx_i):
                 fc += (f"[{i}:a]{fmt},volume={vol},adelay={int(t * 1000)},"
@@ -436,7 +436,7 @@ def encode(clips, overlays, punches, voice, music, sfx, ass, dur, out):
                 nl = len(labels)
                 fc += ("".join(labels) +
                        f"amix=inputs={nl}:duration=longest:dropout_transition=0,"
-                       f"volume={nl},alimiter=limit=0.95[a]")
+                       f"volume=1.0 ,alimiter=limit=0.97[a]")
             else:
                 fc += "[voz]anull[a]"
 
@@ -495,10 +495,10 @@ def main():
         sfx.append((0.0, random.choice(intro_files), 0.7))
     if img_files:                                   # mesmo som em todas as imagens do vídeo
         chosen = random.choice(img_files)
-        sfx += [(max(ov["start"] - 0.03, 0), chosen, 0.4) for ov in overlays]
+        sfx += [(max(ov["start"] - 0.03, 0), chosen, 0.55) for ov in overlays]
     destaque_files = files_in("sfx/destaque", exts)
     if destaque_files:                              # som próprio para os números em destaque
-        sfx += [(max(c["start"] - 0.02, 0), random.choice(destaque_files), 0.45) for c in callouts]
+        sfx += [(max(c["start"] - 0.02, 0), random.choice(destaque_files), 0.60) for c in callouts]
     print("efeitos:", len(sfx))
 
     final = OUT / "short.mp4"
