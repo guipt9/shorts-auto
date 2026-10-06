@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Fase A1 - escolhe a história do dia e escreve payload.json para o make_video.py.
 
-Pilares ativos: 'factos' (reais) e 'historias' (ficção assumida).
-O pilar 'noticias' chega na fase A2.
+Pilares: 'factos' (reais), 'historias' (ficção assumida) e 'noticias' (temas em alta,
+só com o que está nas manchetes das fontes; sem notícias adequadas, cai para 'factos').
 
 Variáveis de ambiente:
   GEMINI_API_KEY   (obrigatória)
-  PILAR            auto | factos | historias        (por defeito: auto)
+  PILAR            auto | factos | historias | noticias   (por defeito: auto)
   TEMA             tema manual (opcional)
   PREVIEW          true -> não grava histórico nem marca ideias como usadas
 
@@ -15,6 +15,7 @@ e (no GitHub) as saídas skip / pilar / titulo.
 """
 import datetime
 import json
+import xml.etree.ElementTree as ET
 import os
 import pathlib
 import random
@@ -45,10 +46,13 @@ HOOKS = {
     "aposta": "Open in the middle of danger or high stakes: one wrong move and everything is lost.",
     "e_se": "Open with a vivid what-if question about tomorrow morning.",
     "ultimo": "Open with someone who was the only one, the last one or the first one to do something strange.",
+    "agora": "Open with what just happened, in plain words, as if telling a friend the news (no exaggeration).",
+    "porque_importa": "Open with why this matters in everyday life, then reveal the news.",
 }
 HOOKS_POR_PILAR = {
     "factos": ["contradicao", "parece_falso", "numero", "misterio", "segredo"],
     "historias": ["misterio", "aposta", "e_se", "ultimo", "segredo"],
+    "noticias": ["agora", "porque_importa", "numero"],
 }
 
 REGRAS_PILAR = {
@@ -61,6 +65,14 @@ REGRAS_PILAR = {
         "(e.g. 'Imagine...', 'Here is a short story.', 'Legend says...'). Build suspense toward a twist "
         "that feels earned. No real people, brands, real events or real tragedies. "
         "No gore, no sexual content."),
+    "noticias": (
+        "Pillar NEWS: a short explainer of a topic that is trending right now. Use ONLY the facts in the "
+        "SOURCE MATERIAL below. Never add numbers, names, quotes, causes, dates or predictions that are not "
+        "in it. If the material is thin, say less and keep it short; never fill gaps with guesses. "
+        "Attribute once, in plain words: 'According to <one source name from the material>'. Neutral tone, "
+        "no opinions, no sensational claims, no blame on named people, never name private individuals. "
+        "Explain in simple words why people are talking about it. Image terms must be generic, lowercase "
+        "and photographable (e.g. 'stadium crowd', 'stock chart'), never a person's name, team, logo or brand."),
 }
 
 
@@ -235,12 +247,12 @@ def repetido(ideia, ja_usadas):
 
 
 def escolher_pilar(cfg, forcado):
-    if forcado in ("factos", "historias"):
-        return forcado
-    if forcado == "noticias":
-        raise RuntimeError("O pilar 'noticias' só chega na fase A2.")
     ativos = [(k, v.get("peso", 1)) for k, v in cfg["pilares"].items()
               if v.get("ativo") and k in HOOKS_POR_PILAR]
+    if forcado in HOOKS_POR_PILAR:
+        if forcado not in [k for k, _ in ativos]:
+            raise RuntimeError(f"O pilar '{forcado}' está desativado no config.json.")
+        return forcado
     return random.choices([k for k, _ in ativos], weights=[w for _, w in ativos])[0]
 
 
@@ -350,6 +362,157 @@ def pontuar(cands, cfg):
     return random.choice(cands)
 
 
+class SemNoticias(Exception):
+    """Hoje não há notícias adequadas (ou o feed falhou): o dia cai para o pilar 'factos'."""
+
+
+UA = {"User-Agent": "Mozilla/5.0 (compatible; ShortsBot/1.0)"}
+
+
+def _local(tag):
+    return tag.rsplit("}", 1)[-1]
+
+
+def _texto(el, nome):
+    for ch in el.iter():
+        if _local(ch.tag) == nome and (ch.text or "").strip():
+            return ch.text.strip()
+    return ""
+
+
+def _trafego(txt):
+    n = re.sub(r"[^\d]", "", txt or "")
+    return int(n) if n else 0
+
+
+def buscar_trends(geo):
+    """Pesquisas em alta (RSS público do Google Trends) com as manchetes associadas."""
+    r = requests.get("https://trends.google.com/trending/rss", params={"geo": geo}, headers=UA, timeout=30)
+    r.raise_for_status()
+    out = []
+    for item in ET.fromstring(r.content).iter("item"):
+        query = _texto(item, "title")
+        fontes = []
+        for ni in item:
+            if _local(ni.tag) == "news_item":
+                t = _texto(ni, "news_item_title")
+                if t:
+                    fontes.append({"titulo": t, "fonte": _texto(ni, "news_item_source"),
+                                   "trecho": _texto(ni, "news_item_snippet"),
+                                   "url": _texto(ni, "news_item_url")})
+        if query:
+            out.append({"query": query, "trafego": _trafego(_texto(item, "approx_traffic")), "fontes": fontes})
+    return out
+
+
+def buscar_headlines(query, geo="US", n=4):
+    """Manchetes recentes do Google News (RSS) para um tema; falha em silêncio."""
+    try:
+        r = requests.get("https://news.google.com/rss/search",
+                         params={"q": f"{query} when:2d", "hl": "en-US", "gl": geo, "ceid": f"{geo}:en"},
+                         headers=UA, timeout=30)
+        r.raise_for_status()
+        out = []
+        for item in ET.fromstring(r.content).iter("item"):
+            t = _texto(item, "title")
+            fonte = _texto(item, "source")
+            if " - " in t:
+                t, resto = t.rsplit(" - ", 1)
+                fonte = fonte or resto
+            if t:
+                out.append({"titulo": t.strip(), "fonte": fonte, "trecho": "", "url": _texto(item, "link")})
+            if len(out) >= n:
+                break
+        return out
+    except Exception as e:
+        log("Google News indisponível:", e)
+        return []
+
+
+def _proibido(texto, cfg):
+    palavras = cfg.get("palavras_proibidas", []) + cfg.get("palavras_proibidas_noticias", [])
+    return next((w for w in palavras if re.search(rf"\b{re.escape(w.lower())}\b", texto.lower())), None)
+
+
+def candidatos_noticias(cfg, hist, tema=""):
+    nc = cfg.get("noticias", {})
+    geos = nc.get("geos", ["US"])
+    usadas = [u.get("tema", "") for u in hist.get("usados", [])]
+    if tema:
+        fontes = buscar_headlines(tema, geos[0])
+        if not fontes:
+            raise SemNoticias(f"não encontrei manchetes para '{tema}'")
+        trends = [{"query": tema, "trafego": 0, "fontes": fontes}]
+        origem = "manual+google news"
+    else:
+        trends, origem = [], "trends:" + ",".join(geos)
+        for geo in geos:
+            try:
+                trends += buscar_trends(geo)
+            except Exception as e:
+                log(f"Google Trends ({geo}) falhou:", e)
+        if not trends:
+            raise SemNoticias("o feed do Google Trends não respondeu")
+    cands = []
+    for t in sorted(trends, key=lambda x: x["trafego"], reverse=True):
+        if len(t["fontes"]) < 2 and nc.get("headlines_extra", True):
+            vistos = {f["titulo"] for f in t["fontes"]}
+            t["fontes"] += [f for f in buscar_headlines(t["query"], geos[0]) if f["titulo"] not in vistos]
+        t["fontes"] = t["fontes"][:4]
+        bloco = t["query"] + " " + " ".join(f["titulo"] for f in t["fontes"])
+        if not t["fontes"]:
+            continue
+        if repetido(t["query"], usadas):
+            log(f"Notícia repetida, ignorada: {t['query']}")
+            continue
+        w = _proibido(bloco, cfg)
+        if w:
+            log(f"Notícia filtrada ('{w}'): {t['query']}")
+            continue
+        cands.append({"ideia": t["query"], "categoria": "news", "fontes": t["fontes"],
+                      "trafego": t["trafego"]})
+    cands = cands[: nc.get("max_candidatos", 10)]
+    if not cands:
+        raise SemNoticias("nenhum tema em alta passou nos filtros")
+    return cands, origem
+
+
+def pontuar_noticias(cands, cfg):
+    """Uma chamada: nota 0-10 e 'seguro' 0/1. Devolve a melhor segura, ou None."""
+    blocos = []
+    for i, c in enumerate(cands):
+        manchetes = " | ".join(f"{f['titulo']} ({f['fonte']})" for f in c["fontes"])
+        blocos.append(f"{i}: {c['ideia']} -- headlines: {manchetes}")
+    prompt = (
+        "TASK: SCORE\n"
+        "You pick the best trending news topic for a 20-25 second YouTube Short from the candidates below.\n"
+        "Rate each from 0 to 10 on: gancho (strength of the hook), emocao (surprise, awe, humor), "
+        "universal (broad appeal), visual (easy to illustrate with generic stock photos), "
+        "curto (the headlines are enough to tell it honestly in 40-70 words). Be harsh.\n"
+        "Also give 'seguro': 1 only if the topic is safe and suitable, 0 if it involves death, injury, "
+        "tragedy, disaster, crime, violence, war, politics, elections, health scares, scandals, lawsuits, "
+        "sexual content, minors, betting, or named private individuals.\n"
+        "Candidates:\n" + "\n".join(blocos) + "\n"
+        'Return ONLY JSON: a list of objects like {"i": <number>, "gancho": n, "emocao": n, "universal": n, '
+        '"visual": n, "curto": n, "seguro": 0 or 1}.')
+    minimo = cfg.get("noticias", {}).get("nota_minima", 25)
+    try:
+        notas = gemini(prompt, cfg, temperature=0.3)
+        total = {}
+        for n in notas:
+            i = int(n["i"])
+            if 0 <= i < len(cands) and int(n.get("seguro", 0)) == 1:
+                total[i] = sum(float(n.get(k, 0)) for k in ("gancho", "emocao", "universal", "visual", "curto"))
+        total = {i: v for i, v in total.items() if v >= minimo}
+        if total:
+            melhor = max(total, key=total.get)
+            log(f"Notícias: melhor #{melhor} com {total[melhor]:.0f}/50 (mínimo {minimo})")
+            return cands[melhor]
+    except Exception as e:
+        log("A pontuação das notícias falhou:", e)
+    return None
+
+
 def escolher_gancho(pilar, hist):
     recentes = [u.get("gancho") for u in hist.get("usados", [])[-3:]]
     opcoes = [h for h in HOOKS_POR_PILAR[pilar] if h not in recentes] or HOOKS_POR_PILAR[pilar]
@@ -357,14 +520,27 @@ def escolher_gancho(pilar, hist):
 
 
 # --------------------------------------------------- escrita e verificação
-def escrever(pilar, ideia, gancho, cfg, feedback=None):
-    L = cfg["limites"]
+def limites(cfg, pilar):
+    return cfg.get("limites_noticias", cfg["limites"]) if pilar == "noticias" else cfg["limites"]
+
+
+def bloco_fontes(fontes):
+    if not fontes:
+        return ""
+    linhas = [f"- {f['titulo']} (source: {f['fonte'] or 'unknown'})" + (f" {f['trecho']}" if f.get("trecho") else "")
+              for f in fontes]
+    return "SOURCE MATERIAL (the ONLY facts you may use):\n" + "\n".join(linhas) + "\n"
+
+
+def escrever(pilar, ideia, gancho, cfg, feedback=None, fontes=None):
+    L = limites(cfg, pilar)
     fb = (f"\nFIX THESE PROBLEMS FROM THE PREVIOUS ATTEMPT: {feedback}\n" if feedback else "")
     prompt = (
         "TASK: WRITE\n"
         "You write scripts for a YouTube Shorts channel. Language: American English, spoken style, "
         "short punchy sentences.\n"
         f"Premise: {ideia}\n"
+        f"{bloco_fontes(fontes)}"
         f"Hook style for scene 1: {HOOKS[gancho]}\n"
         f"{REGRAS_PILAR[pilar]}\n\n"
         "FORMAT - the script is a list of scenes (one short sentence per scene) written as ONE string:\n"
@@ -392,15 +568,19 @@ def escrever(pilar, ideia, gancho, cfg, feedback=None):
     return gemini(prompt, cfg, temperature=0.9)
 
 
-def verificar(pilar, ideia, p, cfg):
+def verificar(pilar, ideia, p, cfg, fontes=None):
     prompt = (
         "TASK: VERIFY\n"
         "You are a strict fact-checker and editor for a YouTube Shorts script.\n"
         f"Pillar: {pilar}\nPremise: {ideia}\n"
+        f"{bloco_fontes(fontes)}"
         f"Script (JSON): {json.dumps(p, ensure_ascii=False)}\n"
         "Check:\n"
         "1) FACTS pillar: is every factual claim true? List doubtful or false claims. "
-        "STORY pillar: is it clearly framed as fiction, with no real people, brands or real tragedies?\n"
+        "STORY pillar: is it clearly framed as fiction, with no real people, brands or real tragedies? "
+        "NEWS pillar: is EVERY claim supported by the SOURCE MATERIAL (no added numbers, names, causes, "
+        "quotes or predictions)? Is it attributed ('According to ...')? Neutral, no speculation, no blame "
+        "on named people, no private individuals?\n"
         "2) Is scene 1 a strong hook of at most 10 words with no greeting?\n"
         "3) Does the last scene end as an unfinished sentence that flows into scene 1?\n"
         "4) Any double quotes, emojis, or the characters | or // inside sentences?\n"
@@ -451,8 +631,8 @@ def sanear(p):
             "tags": [t for t in tags if t][:5], "cenas": cenas_para_texto(p.get("cenas"))}
 
 
-def validar(p, cfg):
-    L = cfg["limites"]
+def validar(p, cfg, pilar="factos"):
+    L = limites(cfg, pilar)
     prob = []
     if not p.get("titulo"):
         prob.append("missing title")
@@ -479,6 +659,8 @@ def validar(p, cfg):
             com_img += 1
             if len(k.split()) > 3 or not re.match(r"^[A-Za-z][A-Za-z '\-]*$", k):
                 prob.append(f"scene {i + 1} image term must be 1-3 plain English words")
+            elif pilar == "noticias" and k != k.lower():
+                prob.append(f"scene {i + 1} image term must be generic and lowercase (no names)")
         if re.search(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]", t):
             prob.append(f"scene {i + 1} contains an emoji")
     if cenas:
@@ -493,21 +675,31 @@ def validar(p, cfg):
     if not (L["imagens_min"] <= com_img <= L["imagens_max"]):
         prob.append(f"need image terms in {L['imagens_min']}-{L['imagens_max']} scenes, got {com_img}")
     texto_all = f"{p.get('titulo', '')} {p.get('descricao', '')} {p.get('cenas', '')}".lower()
-    for w in cfg.get("palavras_proibidas", []):
+    if pilar == "noticias" and not re.search(r"according to|reported by|reports? (?:say|from)", texto_all):
+        prob.append("attribute the news once with 'According to <source>'")
+    palavras = cfg.get("palavras_proibidas", []) + (cfg.get("palavras_proibidas_noticias", []) if pilar == "noticias" else [])
+    for w in palavras:
         if re.search(rf"\b{re.escape(w.lower())}\b", texto_all):
             prob.append(f"contains banned word '{w}'")
     return prob
 
 
-def montar_payload(p, pilar, cfg, ideia, gancho):
+def montar_payload(p, pilar, cfg, ideia, gancho, fontes=None):
     cenas = parse_cenas(p["cenas"])
     cenas_txt = " // ".join(f"{t} | {k}" if k else f"{t} |" for t, k in cenas)
     desc = p["descricao"]
     if pilar == "historias" and not desc.lower().startswith("fictional story"):
         desc = "Fictional story. " + desc
+    nomes = []
+    for f in fontes or []:
+        if f.get("fonte") and f["fonte"] not in nomes:
+            nomes.append(f["fonte"])
+    if pilar == "noticias":
+        desc += "\n\nBased on news reports" + (f" from {', '.join(nomes[:3])}" if nomes else "") + \
+                ". Details may change."
     return {"titulo": p["titulo"], "descricao": desc, "tags": p["tags"], "cenas": cenas_txt,
             "linha": pilar, "voz": cfg.get("voz"), "ritmo": cfg.get("ritmo"),
-            "tema": ideia, "gancho": gancho}
+            "tema": ideia, "gancho": gancho, "fontes": nomes[:3]}
 
 
 # --------------------------------------------------------------- resumo
@@ -540,9 +732,22 @@ def main():
     hist = load_json(DATA / "historico.json", {"usados": []})
 
     pilar = escolher_pilar(cfg, forcado)
+    nota, fontes, escolha = "", None, None
+    if pilar == "noticias":
+        try:
+            cands, origem = candidatos_noticias(cfg, hist, tema)
+            escolha = pontuar_noticias(cands, cfg)
+            if escolha is None:
+                raise SemNoticias("nenhuma notícia segura e forte o suficiente")
+            fontes = escolha["fontes"]
+        except SemNoticias as e:
+            nota = f"Sem notícias adequadas hoje ({e}); usei o pilar 'factos'."
+            log(nota)
+            pilar, tema = "factos", ""
     log(f"Pilar: {pilar} | pré-visualização: {preview}")
-    cands, origem = candidatos(pilar, cfg, hist, tema)
-    escolha = pontuar(cands, cfg)
+    if escolha is None:
+        cands, origem = candidatos(pilar, cfg, hist, tema)
+        escolha = pontuar(cands, cfg)
     ideia = escolha["ideia"]
     gancho = escolher_gancho(pilar, hist)
     log(f"Tema ({origem}): {ideia} | gancho: {gancho}")
@@ -550,18 +755,18 @@ def main():
     final, feedback = None, None
     for tentativa in range(1, 4):
         log(f"--- Escrita, tentativa {tentativa}")
-        p = sanear(escrever(pilar, ideia, gancho, cfg, feedback))
-        prob = validar(p, cfg)
+        p = sanear(escrever(pilar, ideia, gancho, cfg, feedback, fontes))
+        prob = validar(p, cfg, pilar)
         if prob:
             feedback = "; ".join(prob)
             log("Rejeitado pelo código:", feedback)
             continue
-        qa = verificar(pilar, ideia, p, cfg)
+        qa = verificar(pilar, ideia, p, cfg, fontes)
         if qa.get("aprovado"):
             final = p
             break
         corr = sanear(qa.get("versao_corrigida")) if qa.get("versao_corrigida") else None
-        if corr and not validar(corr, cfg):
+        if corr and not validar(corr, cfg, pilar):
             log("Verificação pediu correções e a versão corrigida foi aceite:", qa.get("problemas"))
             final = corr
             break
@@ -578,9 +783,14 @@ def main():
         guardar_modelo()
         return 0
 
-    payload = montar_payload(final, pilar, cfg, ideia, gancho)
+    payload = montar_payload(final, pilar, cfg, ideia, gancho, fontes)
     (ROOT / "payload.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
-    resumo(payload, pilar, origem, preview, extra=info_gemini())
+    extra = info_gemini()
+    if nota:
+        extra = f"⚠️ {nota}\n\n" + extra
+    if fontes:
+        extra = "**Fontes:** " + " · ".join(f"{f['titulo']} ({f['fonte']})" for f in fontes) + "\n\n" + extra
+    resumo(payload, pilar, origem, preview, extra=extra)
     guardar_modelo()
     set_output("skip", "false")
     set_output("pilar", pilar)
@@ -592,12 +802,13 @@ def main():
             "gancho": gancho, "titulo": payload["titulo"]})
         hist["usados"] = hist["usados"][-400:]
         save_json(DATA / "historico.json", hist)
-        banco_path = DATA / f"banco_{pilar}.json"
-        banco = load_json(banco_path, [])
-        for b in banco:
-            if b.get("ideia") == ideia:
-                b["usada"] = True
-        save_json(banco_path, banco)
+        if pilar != "noticias":
+            banco_path = DATA / f"banco_{pilar}.json"
+            banco = load_json(banco_path, [])
+            for b in banco:
+                if b.get("ideia") == ideia:
+                    b["usada"] = True
+            save_json(banco_path, banco)
     return 0
 
 

@@ -10,7 +10,7 @@
       "peso": 40
     },
     "noticias": {
-      "ativo": false,
+      "ativo": true,
       "peso": 30
     },
     "historias": {
@@ -54,5 +54,65 @@
     "imagens_min": 2,
     "imagens_max": 5,
     "titulo_max": 70
-  }
+  },
+  "noticias": {
+    "geos": [
+      "US"
+    ],
+    "max_candidatos": 10,
+    "headlines_extra": true,
+    "nota_minima": 25
+  },
+  "limites_noticias": {
+    "cenas_min": 6,
+    "cenas_max": 9,
+    "palavras_min": 40,
+    "palavras_max": 70,
+    "imagens_min": 2,
+    "imagens_max": 4,
+    "titulo_max": 70
+  },
+  "palavras_proibidas_noticias": [
+    "dead",
+    "dies",
+    "died",
+    "death",
+    "killed",
+    "kills",
+    "shooting",
+    "shot",
+    "war",
+    "attack",
+    "attacks",
+    "bomb",
+    "missile",
+    "arrested",
+    "charged",
+    "lawsuit",
+    "sued",
+    "crash",
+    "earthquake",
+    "hurricane",
+    "wildfire",
+    "flood",
+    "tornado",
+    "election",
+    "vote",
+    "voting",
+    "congress",
+    "senate",
+    "harris",
+    "israel",
+    "gaza",
+    "ukraine",
+    "russia",
+    "abuse",
+    "assault",
+    "scandal",
+    "hospital",
+    "outbreak",
+    "betting",
+    "odds",
+    "gambling"
+  ]
 }
