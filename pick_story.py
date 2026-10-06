@@ -81,6 +81,29 @@ def log(*a):
     print(*a, flush=True)
 
 
+def hoje():
+    """Data de hoje em UTC (o mesmo relógio dos agendamentos do GitHub)."""
+    return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+
+
+def enviados_hoje(hist):
+    return [u for u in hist.get("usados", []) if u.get("data") == hoje() and u.get("estado") == "enviado"]
+
+
+def concluir():
+    """Marca como 'enviado' o vídeo de hoje, depois de o Make ter sido avisado com sucesso."""
+    hist = load_json(DATA / "historico.json", {"usados": []})
+    titulo = os.environ.get("TITULO", "")
+    for u in reversed(hist.get("usados", [])):
+        if u.get("estado") == "pendente" and (not titulo or u.get("titulo") == titulo):
+            u["estado"] = "enviado"
+            save_json(DATA / "historico.json", hist)
+            log("Marcado como enviado:", u.get("titulo"))
+            return 0
+    log("Nada pendente para marcar.")
+    return 0
+
+
 def load_json(path, default):
     try:
         return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
@@ -556,10 +579,13 @@ def escrever(pilar, ideia, gancho, cfg, feedback=None, fontes=None):
         "- Scene 2 opens a loop: a promise or tease that is paid off near the end.\n"
         "- A twist or reveal in the scene before the last.\n"
         "- The LAST scene must be an unfinished sentence that flows into scene 1 when the video restarts "
-        "(e.g. it ends with 'and that is why'). The last scene has an empty imagem.\n"
+        "(e.g. it ends with 'and that is why'). Read the last scene followed by scene 1 out loud: together they "
+        "must sound like ONE natural sentence. The last scene has an empty imagem.\n"
         f"- Image terms only in {L['imagens_min']}-{L['imagens_max']} scenes (hook, key reveal, twist); all other "
         "scenes have an empty imagem. Concrete photographable things only (e.g. 'octopus underwater', "
-        "'roman coin'); never abstract words, people's names or brands.\n"
+        "'roman coin'): prefer the main subject (animal, place, object, landscape) that a stock-photo site "
+        "would surely have, and avoid gross, medical or overly specific terms (use 'wombat', not "
+        "'wombat poop'); never abstract words, people's names or brands.\n"
         "- Write numbers as digits (3,000, not three thousand).\n"
         "- Never use double quotes inside a sentence, no emojis, and no | or // characters.\n"
         f"{fb}\n"
@@ -748,6 +774,18 @@ def main():
     tema = (os.environ.get("TEMA") or "").strip()
     hist = load_json(DATA / "historico.json", {"usados": []})
 
+    agendado = os.environ.get("AGENDADO", "").lower() == "true"
+    por_dia = cfg.get("videos_por_dia", 1)
+    if agendado and not preview and len(enviados_hoje(hist)) >= por_dia:
+        msg = f"Já foram enviados {len(enviados_hoje(hist))} vídeo(s) hoje (limite {por_dia}); esta execução de reserva não faz nada."
+        log(msg)
+        set_output("skip", "true")
+        f = os.environ.get("GITHUB_STEP_SUMMARY")
+        if f:
+            with open(f, "a", encoding="utf-8") as fh:
+                fh.write(f"## Execução de reserva dispensada\n\n{msg}\n")
+        return 0
+
     pilar = escolher_pilar(cfg, forcado)
     nota, fontes, escolha = "", None, None
     if pilar == "noticias":
@@ -815,8 +853,8 @@ def main():
 
     if not preview:
         hist.setdefault("usados", []).append({
-            "data": datetime.date.today().isoformat(), "pilar": pilar, "tema": ideia,
-            "gancho": gancho, "titulo": payload["titulo"]})
+            "data": hoje(), "pilar": pilar, "tema": ideia, "gancho": gancho,
+            "titulo": payload["titulo"], "estado": "pendente"})
         hist["usados"] = hist["usados"][-400:]
         save_json(DATA / "historico.json", hist)
         if pilar != "noticias":
@@ -831,7 +869,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        sys.exit(concluir() if "--concluir" in sys.argv else main())
     except RuntimeError as e:
         print(f"ERRO: {e}", file=sys.stderr, flush=True)
         sys.exit(1)

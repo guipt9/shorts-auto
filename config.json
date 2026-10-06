@@ -51,7 +51,7 @@
     "cenas_max": 10,
     "palavras_min": 55,
     "palavras_max": 78,
-    "imagens_min": 2,
+    "imagens_min": 3,
     "imagens_max": 5,
     "titulo_max": 70
   },
@@ -114,5 +114,6 @@
     "betting",
     "odds",
     "gambling"
-  ]
+  ],
+  "videos_por_dia": 1
 }
