@@ -32,6 +32,7 @@ _last_call = 0.0
 _modelos = None      # modelos a tentar, do preferido para o menos preferido
 _idx = 0             # modelo atual (fica "colado" ao que funcionar)
 _chamadas = 0        # pedidos feitos ao Gemini nesta execução
+_esgotado = False    # True quando todos os modelos falharam numa chamada
 
 STOP = {"the", "a", "an", "of", "in", "on", "at", "to", "is", "are", "was", "were", "and",
         "or", "that", "it", "its", "for", "by", "as", "with", "from", "than", "this", "has", "have"}
@@ -124,7 +125,7 @@ def listar_modelos():
     nomes = [m["name"].split("/")[-1] for m in r.json().get("models", [])
              if "generateContent" in m.get("supportedGenerationMethods", [])]
     ok = [n for n in nomes if "flash" in n and
-          not re.search(r"image|tts|live|audio|embed|exp|preview|robotics|computer|thinking", n)]
+          not re.search(r"image|tts|live|audio|embed|exp|preview|robotics|computer|thinking|omni|latest|veo|imagen", n)]
 
     def versao(n):
         m = re.search(r"gemini-(\d+(?:\.\d+)?)", n)
@@ -160,7 +161,9 @@ def modelos_ordenados(cfg):
 def gemini(prompt, cfg, temperature=0.9):
     """Chama o Gemini e devolve o JSON. Se um modelo estiver sobrecarregado (503), sem quota
     (429) ou inexistente (404), passa ao modelo seguinte e continua daí."""
-    global _last_call, _idx, _chamadas
+    global _last_call, _idx, _chamadas, _esgotado
+    if _esgotado:
+        raise RuntimeError("O Gemini ficou indisponível nesta execução (todos os modelos falharam).")
     modelos = modelos_ordenados(cfg)
     falhas, ultimo = 0, None
 
@@ -169,7 +172,7 @@ def gemini(prompt, cfg, temperature=0.9):
         _idx = (_idx + 1) % len(modelos)
         log(f"{motivo}; a passar ao modelo {modelos[_idx]}")
 
-    for _ in range(12):
+    for _ in range(2 * len(modelos) + 4):
         modelo = modelos[_idx]
         espera = cfg.get("pausa_entre_chamadas_s", 6) - (time.time() - _last_call)
         if espera > 0:
@@ -214,6 +217,7 @@ def gemini(prompt, cfg, temperature=0.9):
         except Exception:
             log("JSON inválido; a repetir...")
             prompt += "\n\nReturn ONLY valid JSON, nothing else."
+    _esgotado = True
     raise RuntimeError(f"O Gemini não devolveu uma resposta utilizável (último estado: {ultimo}; "
                        f"modelos tentados: {', '.join(modelos)}). Se forem 503, é falta de capacidade "
                        "do lado da Google (tenta mais tarde); se forem 429, a quota gratuita acabou.")
@@ -543,38 +547,46 @@ def escrever(pilar, ideia, gancho, cfg, feedback=None, fontes=None):
         f"{bloco_fontes(fontes)}"
         f"Hook style for scene 1: {HOOKS[gancho]}\n"
         f"{REGRAS_PILAR[pilar]}\n\n"
-        "FORMAT - the script is a list of scenes (one short sentence per scene) written as ONE string:\n"
-        '  "sentence | image term // sentence | // sentence | image term // ..."\n'
-        "- Scenes are separated by ' // '. Inside a scene the sentence comes first, then ' | ' and an English "
-        "image search term (1-3 words), or nothing after the bar.\n"
-        f"- {L['cenas_min']}-{L['cenas_max']} scenes, {L['palavras_min']}-{L['palavras_max']} words in total, "
-        "5-11 words per scene.\n"
+        "FORMAT - the script is a JSON list of scenes. Each scene is an object with two keys:\n"
+        '  "texto": ONE short spoken sentence,\n'
+        '  "imagem": an English image search term (1-3 words) or an empty string "".\n'
+        f"- {L['cenas_min']}-{L['cenas_max']} scenes, {L['palavras_min']}-{L['palavras_max']} words in total "
+        "(count them!), 5-11 words per scene.\n"
         "- Scene 1 is the hook: at most 10 words, no greeting, no 'did you know', no 'today', no 'in this video'.\n"
         "- Scene 2 opens a loop: a promise or tease that is paid off near the end.\n"
         "- A twist or reveal in the scene before the last.\n"
         "- The LAST scene must be an unfinished sentence that flows into scene 1 when the video restarts "
-        "(e.g. it ends with 'and that is why'). The last scene has NO image term.\n"
-        f"- Image terms only in {L['imagens_min']}-{L['imagens_max']} scenes (hook, key reveal, twist). Concrete "
-        "photographable things only (e.g. 'octopus underwater', 'roman coin'); never abstract words, "
-        "people's names or brands.\n"
+        "(e.g. it ends with 'and that is why'). The last scene has an empty imagem.\n"
+        f"- Image terms only in {L['imagens_min']}-{L['imagens_max']} scenes (hook, key reveal, twist); all other "
+        "scenes have an empty imagem. Concrete photographable things only (e.g. 'octopus underwater', "
+        "'roman coin'); never abstract words, people's names or brands.\n"
         "- Write numbers as digits (3,000, not three thousand).\n"
-        "- Never use double quotes, the characters | or // inside a sentence, and no emojis.\n"
+        "- Never use double quotes inside a sentence, no emojis, and no | or // characters.\n"
         f"{fb}\n"
         "OUTPUT: ONLY JSON with keys:\n"
         f'  "titulo": curiosity title, max {L["titulo_max"]} characters, no lies, no promise you cannot pay off,\n'
         '  "descricao": 1-2 sentences in English describing the video (no hashtags),\n'
         '  "tags": list of 5 lowercase English keywords,\n'
-        '  "cenas": the scenes string described above.')
+        '  "cenas": the list of scene objects described above.')
     return gemini(prompt, cfg, temperature=0.9)
 
 
+def cenas_legiveis(p):
+    linhas = []
+    for i, (t, k) in enumerate(parse_cenas(p.get("cenas", "")), 1):
+        linhas.append(f"Scene {i}: {t}" + (f"  [image: {k}]" if k else ""))
+    return "\n".join(linhas)
+
+
 def verificar(pilar, ideia, p, cfg, fontes=None):
+    meta = {"titulo": p.get("titulo"), "descricao": p.get("descricao"), "tags": p.get("tags")}
     prompt = (
         "TASK: VERIFY\n"
         "You are a strict fact-checker and editor for a YouTube Shorts script.\n"
         f"Pillar: {pilar}\nPremise: {ideia}\n"
         f"{bloco_fontes(fontes)}"
-        f"Script (JSON): {json.dumps(p, ensure_ascii=False)}\n"
+        f"Title and description (JSON): {json.dumps(meta, ensure_ascii=False)}\n"
+        f"Scenes:\n{cenas_legiveis(p)}\n"
         "Check:\n"
         "1) FACTS pillar: is every factual claim true? List doubtful or false claims. "
         "STORY pillar: is it clearly framed as fiction, with no real people, brands or real tragedies? "
@@ -583,10 +595,11 @@ def verificar(pilar, ideia, p, cfg, fontes=None):
         "on named people, no private individuals?\n"
         "2) Is scene 1 a strong hook of at most 10 words with no greeting?\n"
         "3) Does the last scene end as an unfinished sentence that flows into scene 1?\n"
-        "4) Any double quotes, emojis, or the characters | or // inside sentences?\n"
+        "Do NOT comment on formatting or word counts: other code already checks those.\n"
         'If everything is fine return {"aprovado": true, "problemas": [], "versao_corrigida": null}.\n'
-        'Otherwise return {"aprovado": false, "problemas": ["..."], "versao_corrigida": {same keys as the '
-        "script: titulo, descricao, tags, cenas} with every problem fixed, or null if it cannot be fixed}.\n"
+        'Otherwise return {"aprovado": false, "problemas": ["..."], "versao_corrigida": {"titulo": "...", '
+        '"descricao": "...", "tags": ["..."], "cenas": [{"texto": "...", "imagem": "..."}, ...]} with every '
+        "problem fixed (same number of scenes, same rules), or null if it cannot be fixed}.\n"
         "Return ONLY JSON.")
     return gemini(prompt, cfg, temperature=0.2)
 
@@ -598,16 +611,20 @@ def limpar_texto(s):
     return re.sub(r"\s+", " ", s).strip()
 
 
+def sem_delimitadores(t):
+    return re.sub(r"\s+", " ", re.sub(r"\||//", " ", t)).strip()
+
+
 def cenas_para_texto(c):
     if isinstance(c, list):
         partes = []
         for x in c:
             if isinstance(x, dict):
-                t = limpar_texto(x.get("texto") or x.get("text"))
-                k = limpar_texto(x.get("imagem") or x.get("image"))
+                t = sem_delimitadores(limpar_texto(x.get("texto") or x.get("text")))
+                k = sem_delimitadores(limpar_texto(x.get("imagem") or x.get("image")))
                 partes.append(f"{t} | {k}" if k else f"{t} |")
             else:
-                partes.append(f"{limpar_texto(x)} |")
+                partes.append(f"{sem_delimitadores(limpar_texto(x))} |")
         return " // ".join(partes)
     return limpar_texto(c)
 
