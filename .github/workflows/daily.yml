@@ -6,7 +6,7 @@ on:
       preview:
         description: 'Só gerar o guião (não renderiza nem publica)'
         type: boolean
-        default: true
+        default: false
       pilar:
         description: 'Pilar da história'
         type: choice
@@ -16,15 +16,11 @@ on:
         description: 'Tema manual (opcional)'
         required: false
         default: ''
-  # schedule:              # ativar na etapa A3
-  #   - cron: '0 16 * * *'
+  schedule:
+    - cron: '0 16 * * *'   # todos os dias às 16h UTC
 
 permissions:
   contents: write
-
-concurrency:
-  group: daily-short
-  cancel-in-progress: false
 
 jobs:
   daily:
@@ -35,15 +31,16 @@ jobs:
       GH_REPO: ${{ github.repository }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
-      PREVIEW: ${{ github.event_name == 'workflow_dispatch' && inputs.preview || 'false' }}
-      PILAR: ${{ inputs.pilar || 'auto' }}
-      TEMA: ${{ inputs.tema || '' }}
+      PREVIEW: ${{ inputs.preview }}
+      PILAR: ${{ inputs.pilar }}
+      TEMA: ${{ inputs.tema }}
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
           cache: pip
 
       - name: Instalar dependências Python
@@ -62,23 +59,18 @@ jobs:
       - name: Carregar o payload
         if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
         run: |
-          echo "PAYLOAD<<__PAYLOAD_EOF__" >> "$GITHUB_ENV"
+          echo "PAYLOAD<<__EOF__" >> "$GITHUB_ENV"
           cat payload.json >> "$GITHUB_ENV"
-          echo >> "$GITHUB_ENV"
-          echo "__PAYLOAD_EOF__" >> "$GITHUB_ENV"
+          echo "__EOF__" >> "$GITHUB_ENV"
 
-      - name: Gerar vídeo
+      - name: Renderizar vídeo e publicar no YouTube
         if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
-        run: python make_video.py
-
-      - name: Upload para YouTube
         env:
           CLIENT_SECRET_JSON: ${{ secrets.CLIENT_SECRET_JSON }}
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: python make_video.py
 
-
-      - name: Guardar o histórico e o banco de ideias
+      - name: Guardar histórico e banco de ideias
         if: always() && steps.story.conclusion == 'success'
         run: |
           git config user.name "github-actions[bot]"
