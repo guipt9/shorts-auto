@@ -1,9 +1,9 @@
 name: Generate and upload Short
 
 on:
-  workflow_dispatch:      # podes correr manualmente
+  workflow_dispatch:
   schedule:
-    - cron: "0 18 * * *"  # exemplo: todos os dias às 18h UTC
+    - cron: "0 18 * * *"
 
 jobs:
   build:
@@ -17,6 +17,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
 
       - name: Install dependencies
         run: pip install -r requirements.txt
