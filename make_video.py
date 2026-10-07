@@ -38,7 +38,7 @@ MIN_BREAK = 0.35                    # pausa mínima (só gameplay) entre imagens
 FADE = 0.15
 MAX_CALLOUTS = 3                    # números em destaque por vídeo
 TAIL = 0.3                          # cauda curta: facilita o loop
-MAX_BYTES = 4_800_000      # Make (plano grátis) aceita ficheiros até 5 MB
+MAX_BYTES = 200_000_000  # 200 MB
 AUDIO_KBPS = 56
 DEFAULT_VOICE = "en-US-AndrewNeural"
 DEFAULT_RATE = "+18%"
@@ -459,8 +459,7 @@ def encode(clips, overlays, punches, voice, music, sfx, ass, dur, out):
             print(f"{codec}: {size / 1e6:.2f} MB (crf {crf}, teto {vkbps} kbps)", flush=True)
             if size <= MAX_BYTES:
                 return size
-            vkbps, crf = int(vkbps * 0.9), crf + 2
-    raise RuntimeError("Não consegui gerar o vídeo abaixo de 5 MB; encurta o guião.")
+
 
 
 def main():
