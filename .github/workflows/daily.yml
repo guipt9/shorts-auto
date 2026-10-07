@@ -71,25 +71,12 @@ jobs:
         if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
         run: python make_video.py
 
-      - name: Publicar ficheiro (Release)
-        id: rel
-        if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
-        run: |
-          TAG="short-${{ github.run_id }}"
-          gh release create "$TAG" out/short.mp4 --title "$TAG" --notes "auto"
-          echo "url=https://github.com/${{ github.repository }}/releases/download/$TAG/short.mp4" >> "$GITHUB_OUTPUT"
-          # manter só as 10 Releases mais recentes
-          gh release list --limit 100 --json tagName -q '.[10:][].tagName' \
-            | xargs -r -n1 gh release delete --cleanup-tag -y
-
-      - name: Avisar o Make
-        if: steps.story.outputs.skip != 'true' && env.PREVIEW != 'true'
+      - name: Upload para YouTube
         env:
-          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
-          VIDEO_URL: ${{ steps.rel.outputs.url }}
-        run: |
-          jq --arg url "$VIDEO_URL" '. + {video_url: $url}' out/meta.json \
-            | curl -fsS -X POST "$MAKE_WEBHOOK_URL" -H "Content-Type: application/json" --data @-
+          CLIENT_SECRET_JSON: ${{ secrets.CLIENT_SECRET_JSON }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        run: python make_video.py
+
 
       - name: Guardar o histórico e o banco de ideias
         if: always() && steps.story.conclusion == 'success'
