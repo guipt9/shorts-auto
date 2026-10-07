@@ -518,6 +518,8 @@ def main():
     }
     (OUT / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print("OK", meta["titulo"])
+    from upload_youtube import upload_video
+    upload_video(str(final), meta["titulo"], meta["descricao"], meta["tags"])
 
 
 if __name__ == "__main__":
