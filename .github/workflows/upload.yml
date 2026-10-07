@@ -1,9 +1,7 @@
-name: Generate and upload Short
+name: Upload Short
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 18 * * *"
 
 jobs:
   build:
