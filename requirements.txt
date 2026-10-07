@@ -1,2 +1,5 @@
 edge-tts>=7.2.7
 requests
+google-api-python-client
+google-auth-oauthlib
+google-auth
