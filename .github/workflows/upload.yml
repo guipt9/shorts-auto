@@ -1,0 +1,30 @@
+name: Generate and upload Short
+
+on:
+  workflow_dispatch:      # podes correr manualmente
+  schedule:
+    - cron: "0 18 * * *"  # exemplo: todos os dias às 18h UTC
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run script
+        env:
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          PAYLOAD: ${{ secrets.PAYLOAD }}
+          CLIENT_SECRET_JSON: ${{ secrets.CLIENT_SECRET_JSON }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        run: python3 make_video.py
