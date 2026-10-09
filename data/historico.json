@@ -55,6 +55,14 @@
       "gancho": "ultimo",
       "titulo": "The Robot That Unionized My Laundry",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-09",
+      "pilar": "noticias",
+      "tema": "cardi b",
+      "gancho": "agora",
+      "titulo": "Cardi B Drops A New Song",
+      "estado": "pendente"
     }
   ]
 }
