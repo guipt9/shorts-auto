@@ -63,6 +63,14 @@
       "gancho": "agora",
       "titulo": "Cardi B Drops A New Song",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-10",
+      "pilar": "factos",
+      "tema": "Deep in the atmospheres of Neptune and Uranus, the intense pressure is so high that it literally rains diamonds.",
+      "gancho": "parece_falso",
+      "titulo": "It Rains Solid Diamonds On These Planets",
+      "estado": "pendente"
     }
   ]
 }
