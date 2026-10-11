@@ -71,6 +71,14 @@
       "gancho": "parece_falso",
       "titulo": "It Rains Solid Diamonds On These Planets",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-11",
+      "pilar": "factos",
+      "tema": "The water pressure at the deepest point of the ocean is equivalent to having an elephant standing directly on your thumb.",
+      "gancho": "segredo",
+      "titulo": "The Ocean Pressure Reality Check",
+      "estado": "pendente"
     }
   ]
 }
