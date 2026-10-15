@@ -87,6 +87,14 @@
       "gancho": "contradicao",
       "titulo": "The Ultimate Penguin Proposal",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-15",
+      "pilar": "historias",
+      "tema": "What if shadows started lagging two seconds behind their people, mimicking actions before they actually happen?",
+      "gancho": "aposta",
+      "titulo": "Shadows Lagging Two Seconds Behind",
+      "estado": "pendente"
     }
   ]
 }
