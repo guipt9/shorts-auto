@@ -95,6 +95,14 @@
       "gancho": "aposta",
       "titulo": "Shadows Lagging Two Seconds Behind",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-16",
+      "pilar": "noticias",
+      "tema": "winter weather forecast",
+      "gancho": "numero",
+      "titulo": "Super El Nino Winter Forecast Released",
+      "estado": "pendente"
     }
   ]
 }
