@@ -111,6 +111,14 @@
       "gancho": "segredo",
       "titulo": "The Smart Fridge That Judged My Midnight Snacks",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-18",
+      "pilar": "factos",
+      "tema": "There are more historic artifacts and shipwrecks lying at the bottom of the ocean than in all of the world's museums combined.",
+      "gancho": "contradicao",
+      "titulo": "The Ocean Floor Museum",
+      "estado": "pendente"
     }
   ]
 }
