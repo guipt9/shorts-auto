@@ -135,6 +135,14 @@
       "gancho": "numero",
       "titulo": "Why Harry Kane Deserves The Ballon d Or",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-22",
+      "pilar": "historias",
+      "tema": "A man buys a vintage mirror that reflects yesterday instead of today, until he sees himself waving back from behind the glass.",
+      "gancho": "aposta",
+      "titulo": "The Vintage Mirror That Shows Yesterday",
+      "estado": "pendente"
     }
   ]
 }
