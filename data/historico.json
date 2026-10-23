@@ -143,6 +143,14 @@
       "gancho": "aposta",
       "titulo": "The Vintage Mirror That Shows Yesterday",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-23",
+      "pilar": "historias",
+      "tema": "What if gravity reversed for exactly three seconds every Tuesday afternoon, but only inside grocery store freezer aisles?",
+      "gancho": "misterio",
+      "titulo": "The Tuesday Grocery Freezer Mystery",
+      "estado": "pendente"
     }
   ]
 }
