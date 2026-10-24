@@ -151,6 +151,14 @@
       "gancho": "misterio",
       "titulo": "The Tuesday Grocery Freezer Mystery",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-24",
+      "pilar": "factos",
+      "tema": "There is a giant gas cloud in the center of our galaxy that contains enough ethyl alcohol to fill 400 trillion trillion pints of beer.",
+      "gancho": "parece_falso",
+      "titulo": "The Giant Space Beer Cloud",
+      "estado": "pendente"
     }
   ]
 }
