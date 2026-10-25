@@ -159,6 +159,14 @@
       "gancho": "parece_falso",
       "titulo": "The Giant Space Beer Cloud",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-25",
+      "pilar": "noticias",
+      "tema": "astrology full moon",
+      "gancho": "agora",
+      "titulo": "The Hunter's Moon Meets Saturn",
+      "estado": "pendente"
     }
   ]
 }
