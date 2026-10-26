@@ -167,6 +167,14 @@
       "gancho": "agora",
       "titulo": "The Hunter's Moon Meets Saturn",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-26",
+      "pilar": "factos",
+      "tema": "Neutron stars are so incredibly dense that a single teaspoon of their material would weigh about 6 billion tons on Earth.",
+      "gancho": "contradicao",
+      "titulo": "A Teaspoon of Neutron Star Weight",
+      "estado": "pendente"
     }
   ]
 }
