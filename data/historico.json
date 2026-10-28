@@ -183,6 +183,14 @@
       "gancho": "numero",
       "titulo": "Jason Statham Thriller Hits Free Streaming",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-28",
+      "pilar": "factos",
+      "tema": "The first computer 'bug' was a literal insect—a moth that got stuck inside a Harvard Mark II computer relay in 1947.",
+      "gancho": "parece_falso",
+      "titulo": "The Surprising Origin of the Computer Bug",
+      "estado": "pendente"
     }
   ]
 }
