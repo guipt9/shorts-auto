@@ -191,6 +191,14 @@
       "gancho": "parece_falso",
       "titulo": "The Surprising Origin of the Computer Bug",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-29",
+      "pilar": "noticias",
+      "tema": "halloween store",
+      "gancho": "porque_importa",
+      "titulo": "Philly Halloween Costumes Revealed",
+      "estado": "pendente"
     }
   ]
 }
