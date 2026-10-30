@@ -199,6 +199,14 @@
       "gancho": "porque_importa",
       "titulo": "Philly Halloween Costumes Revealed",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-30",
+      "pilar": "factos",
+      "tema": "A grizzly bear's bite is strong enough to crush a bowling ball, exerting a pressure of over 1,100 pounds per square inch.",
+      "gancho": "contradicao",
+      "titulo": "Grizzly Bear Bite Force Power",
+      "estado": "pendente"
     }
   ]
 }
