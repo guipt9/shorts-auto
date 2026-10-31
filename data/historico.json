@@ -207,6 +207,14 @@
       "gancho": "contradicao",
       "titulo": "Grizzly Bear Bite Force Power",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-10-31",
+      "pilar": "historias",
+      "tema": "A late-night security guard notices the mannequins in a clothing store switch positions every time he blinks.",
+      "gancho": "segredo",
+      "titulo": "The Mall Security Guard Secret",
+      "estado": "pendente"
     }
   ]
 }
