@@ -215,6 +215,14 @@
       "gancho": "segredo",
       "titulo": "The Mall Security Guard Secret",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-01",
+      "pilar": "noticias",
+      "tema": "jack endries",
+      "gancho": "agora",
+      "titulo": "Jack Endries Scores First NFL Catch As Touchdown",
+      "estado": "pendente"
     }
   ]
 }
