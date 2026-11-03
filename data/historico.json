@@ -231,6 +231,14 @@
       "gancho": "numero",
       "titulo": "The Human Alarm Clocks of Victorian London",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-03",
+      "pilar": "historias",
+      "tema": "An office worker discovers that his computer keyboard is typing out his inner thoughts instead of his emails.",
+      "gancho": "misterio",
+      "titulo": "His Keyboard Typed His Secret Thoughts",
+      "estado": "pendente"
     }
   ]
 }
