@@ -247,6 +247,14 @@
       "gancho": "segredo",
       "titulo": "The Secret Truth About Pink Flamingos",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-05",
+      "pilar": "factos",
+      "tema": "In ancient Rome, the sweat of popular gladiators was collected and sold in small vials to wealthy women to use as a facial cosmetic.",
+      "gancho": "contradicao",
+      "titulo": "Roman Women Bought Gladiator Sweat As Perfume",
+      "estado": "pendente"
     }
   ]
 }
