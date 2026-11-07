@@ -263,6 +263,14 @@
       "gancho": "aposta",
       "titulo": "The Dog Who Controlled the TV",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-07",
+      "pilar": "historias",
+      "tema": "What if you could pay for items in a vending machine using your unused memories instead of cash?",
+      "gancho": "e_se",
+      "titulo": "The Vending Machine That Takes Memories",
+      "estado": "pendente"
     }
   ]
 }
