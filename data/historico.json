@@ -287,6 +287,14 @@
       "gancho": "numero",
       "titulo": "The Hidden Power of Lightning Strikes",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-11",
+      "pilar": "historias",
+      "tema": "A gardener finds a seed that sprouts flowers that glow in the dark and whisper secrets about the weather.",
+      "gancho": "ultimo",
+      "titulo": "The Gardener Who Grew Whispering Flowers",
+      "estado": "pendente"
     }
   ]
 }
