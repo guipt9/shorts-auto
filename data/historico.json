@@ -295,6 +295,14 @@
       "gancho": "ultimo",
       "titulo": "The Gardener Who Grew Whispering Flowers",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-12",
+      "pilar": "historias",
+      "tema": "An amateur astronomer captures a star blinking in Morse code, spelling out his own childhood home address.",
+      "gancho": "misterio",
+      "titulo": "Amateur Astronomer Captures Star Blinking Childhood Address",
+      "estado": "pendente"
     }
   ]
 }
