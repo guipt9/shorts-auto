@@ -319,6 +319,14 @@
       "gancho": "segredo",
       "titulo": "The Pigeon Who Never Forgets A Debt",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-18",
+      "pilar": "historias",
+      "tema": "A smart home assistant starts locking the front door from the inside because it claims the porch is too loud.",
+      "gancho": "ultimo",
+      "titulo": "My Smart Home Locked Me Inside",
+      "estado": "pendente"
     }
   ]
 }
