@@ -327,6 +327,14 @@
       "gancho": "ultimo",
       "titulo": "My Smart Home Locked Me Inside",
       "estado": "pendente"
+    },
+    {
+      "data": "2026-11-19",
+      "pilar": "historias",
+      "tema": "What if every mirror on Earth was actually a window into a parallel universe where nobody has mirrors?",
+      "gancho": "misterio",
+      "titulo": "The Mirror World Secret",
+      "estado": "pendente"
     }
   ]
 }
